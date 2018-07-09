@@ -140,7 +140,7 @@ class InnerAttentionDecoder(nn.Module):
         u = self.hidden_dim
         r = attentionhops
         self.attention_hops = r
-        self.W_init = nn.Linear(u,2*u , bias=False)
+        self.W_init = nn.Linear(u,num_layers*u , bias=False)
         self.tanh = nn.Tanh()
         # Build the RNN.
         self.rnn, self.no_pack_padded_seq = \
@@ -295,9 +295,15 @@ class InnerAttentionDecoder(nn.Module):
                   (instead of taking the average over the hidden states of
                    the RNN, as in rSennrich(2017) over the )
         '''
-        #import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         s_0 = self.tanh(self.W_init(encoder_final))
-        s_0 = torch.cat([s_0[:,:,:500],s_0[:,:,500:]])
+        ss = s_0[:,:,:self.hidden_dim]
+        for i in range(self.num_layers - 1):
+            init = (i+1) * self.hidden_dim
+            end = (i+2) * self.hidden_dim
+            print(init,end)
+            ss = torch.cat([ss,s_0[:,:,init:end]])
+        s_0
         return RNNDecoderState(self.hidden_dim, s_0)
 
 
