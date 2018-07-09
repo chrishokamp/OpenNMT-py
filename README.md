@@ -24,14 +24,14 @@ Currently the file `extraModels.py` only contains a one "basic" form for the ATT
 
 
  - **ENCODER:** For the encoder, we use 
-    1- a 2-layered biGRU; and 
-    2- an attention layer with `r = att_heads` attention heads. 
+    1. a 2-layered biGRU; and 
+    2. an attention layer with `r = att_heads` attention heads. 
  
     We adapted the Self-attentive sentence embedding proposed by [Lin et al. (2017)](https://arxiv.org/pdf/1703.03130.pdf) for being use in the OpenNMT environment. Some code is provided in [their GitHiub](https://github.com/kaushalshetty/Structured-Self-Attention/blob/master/attention/model.py)
 
- - **DECODER:** In this case, we use a modified version of the OpenNMT `InputFeedRNNDecoder`, from `onmt/Models.py`. I.e.,  
-    1- a traditional Bahdanau attention layer (1 attention head)
-    2- a 2-layered unidirectional GRU. We set `s_0`, the initial the decoder state, in a similar fashion as [Sennrich et al.(2017)](https://arxiv.org/pdf/1703.04357.pdf). 
+ - **DECODER:** In this case we use a modified version of the OpenNMT `InputFeedRNNDecoder` from `onmt/Models.py`, i.e.,  
+    1. a traditional Bahdanau attention layer (1 attention head)
+    2. a 2-layered unidirectional GRU. We set `s_0`, the initial the decoder state, in a similar fashion as [Sennrich et al.(2017)](https://arxiv.org/pdf/1703.04357.pdf). 
  
     i.e., '''
 s_0 = tanh(W_init * h_avrg);
@@ -39,9 +39,9 @@ s_0 = tanh(W_init * h_avrg);
     where h_avrg is the average of the sentence embedding, M, (instead of taking the average over the hidden states of the RNN, as in Sennrich(2017))
 
 
-|                |                  |
+|                |    Cífka and Bojar's Compound Attention (ATT-ATT)              |
 | :------------- |:----------------:|
-| In order to implement the architecture used by Cífka and Bojar (2018), <br> one can use the following specifications command <br> <br> ``` python train.py -data path/to/data -save_model path/to/outfolder ```<br>```     -rnn_type GRU -encoder_type brnn -rnn_enc_att True -att_heads 4 -global_attention mlp -enc_layers 1 -dec_layers 1```    | ![alt text][fig1]|
+| In order to implement the architecture used by Cífka and Bojar <br>  (2018), one can use the following specifications command <br> <br> ``` python train.py -data path/to/data -save_model ```<br>``` path/to/outfolder  -rnn_type GRU -encoder_type brnn ```<br>```  -rnn_enc_att True -att_heads 4 -global_attention mlp ```<br>```  -enc_layers 1 -dec_layers 1```    | ![alt text][fig1]|
 |              |                   |
 
 
