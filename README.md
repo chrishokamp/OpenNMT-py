@@ -1,7 +1,42 @@
-# OpenNMT-py: Open-Source Neural Machine Translation
-
+# OpenNMT-py: ATT-ATT_FoTran-fork
 [![Build Status](https://travis-ci.org/OpenNMT/OpenNMT-py.svg?branch=master)](https://travis-ci.org/OpenNMT/OpenNMT-py)
+***version:** 0.3 - **commit:** 0ecec8b - **date:** Apr 13, 2018 **  
 
+## About this branch
+ATT-ATT makes reference to Conjugate attention encoder-decoder NMT ([Cífka and Bojar, 2018](https://arxiv.org/pdf/1805.06536.pdf))
+
+#### Important Reuqirement:
+- `PyTorch=0.3.1` - on how to install it: [HERE](https://pytorch.org/previous-versions/)
+
+ 
+#### USAGE:
+Same as OpenNMT-py (see [Full documentation](http://opennmt.net/OpenNMT-py/) ). 
+
+This branch contains the following **NEW** flags for `train.py` routine: 
+ - `rnn_enc_att` (boolean) [default=False] Indicates weather to use the ATT-ATT model. Set to `True` to activate the coumpund attention
+ - `att_heads` (int) [default=1] Indicates the number of attention heads to use for the encoder; the `r` parameter from Cífka and Bojar (2018)
+ 
+#### Usage Notes:
+
+Currently the file `extraModels.py` only contains a one "basic" form for the ATT-ATT model. It is heavily based in the OpenNMT RNNs encoder and decoder.
+
+ - **ENCODER:** For the encoder, we use 
+    1- a 2-layered biGRU; and 
+    2- an attention layer with `r = att_heads` attention heads. 
+ 
+    We adapted the Self-attentive sentence embedding proposed by [Lin et al. (2017)](https://arxiv.org/pdf/1703.03130.pdf) for being use in the OpenNMT environment. Some code is provided in [their GitHiub](https://github.com/kaushalshetty/Structured-Self-Attention/blob/master/attention/model.py)
+
+ - **DECODER:** In this case, we use a modified version of the OpenNMT `InputFeedRNNDecoder`, from `onmt/Models.py`. I.e.,  
+    1- a traditional Bahdanau attention layer (1 attention head)
+    2- a 2-layered unidirectional GRU. We set `s_0`, the initial the decoder state, in a similar fashion as [Sennrich et al.(2017)](https://arxiv.org/pdf/1703.04357.pdf). 
+ 
+    i.e., '''
+s_0 = tanh(W_init * h_avrg);
+'''
+    where h_avrg is the average of the sentence embedding, M, (instead of taking the average over the hidden states of the RNN, as in Sennrich(2017))
+ 2- 
+
+# OpenNMT-py: Open-Source Neural Machine Translation
 This is a [Pytorch](https://github.com/pytorch/pytorch)
 port of [OpenNMT](https://github.com/OpenNMT/OpenNMT),
 an open-source (MIT) neural machine translation system. It is designed to be research friendly to try out new ideas in translation, summary, image-to-text, morphology, and many other domains.
