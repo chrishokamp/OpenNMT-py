@@ -134,6 +134,7 @@ class RNNEncoder(EncoderBase):
 
     def forward(self, src, lengths=None, encoder_state=None):
         "See :obj:`EncoderBase.forward()`"
+        #import ipdb; ipdb.set_trace(context=10)
         self._check_args(src, lengths, encoder_state)
 
         emb = self.embeddings(src)
@@ -152,6 +153,7 @@ class RNNEncoder(EncoderBase):
 
         if self.use_bridge:
             encoder_final = self._bridge(encoder_final)
+        #import ipdb; ipdb.set_trace(context=10)
         return encoder_final, memory_bank
 
     def _initialize_bridge(self, rnn_type,
@@ -241,7 +243,7 @@ class RNNDecoderBase(nn.Module):
                  copy_attn=False, dropout=0.0, embeddings=None,
                  reuse_copy_attn=False):
         super(RNNDecoderBase, self).__init__()
-
+        #import ipdb; ipdb.set_trace(context=5)
         # Basic attributes.
         self.decoder_type = 'rnn'
         self.bidirectional_encoder = bidirectional_encoder
@@ -327,6 +329,7 @@ class RNNDecoderBase(nn.Module):
         return decoder_outputs, state, attns
 
     def init_decoder_state(self, src, memory_bank, encoder_final):
+        #import ipdb; ipdb.set_trace()
         def _fix_enc_hidden(h):
             # The encoder hidden is  (layers*directions) x batch x dim.
             # We need to convert it to layers x batch x (directions*dim).
@@ -340,7 +343,7 @@ class RNNDecoderBase(nn.Module):
                                          for enc_hid in encoder_final]))
         else:  # GRU
             return RNNDecoderState(self.hidden_size,
-                                   _fix_enc_hidden(encoder_final))
+                                      _fix_enc_hidden(encoder_final))
 
 
 class StdRNNDecoder(RNNDecoderBase):
@@ -583,8 +586,10 @@ class NMTModel(nn.Module):
         tgt = tgt[:-1]  # exclude last target from inputs
 
         enc_final, memory_bank = self.encoder(src, lengths)
+        #import ipdb; ipdb.set_trace(context=5)
         enc_state = \
             self.decoder.init_decoder_state(src, memory_bank, enc_final)
+
         decoder_outputs, dec_state, attns = \
             self.decoder(tgt, memory_bank,
                          enc_state if dec_state is None
@@ -635,6 +640,7 @@ class RNNDecoderState(DecoderState):
             rnnstate: final hidden state from the encoder.
                 transformed to shape: layers x batch x (directions*dim).
         """
+        #import ipdb; ipdb.set_trace(context=10)
         if not isinstance(rnnstate, tuple):
             self.hidden = (rnnstate,)
         else:

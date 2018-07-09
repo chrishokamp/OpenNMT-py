@@ -18,6 +18,9 @@ from onmt.Utils import use_gpu
 from torch.nn.init import xavier_uniform
 
 
+from onmt.extraModels import InnerAttentionEncoder, InnerAttentionDecoder
+
+
 def make_embeddings(opt, word_dict, feature_dicts, for_encoder=True):
     """
     Make an Embeddings instance.
@@ -60,6 +63,7 @@ def make_encoder(opt, embeddings):
         opt: the option in current environment.
         embeddings (Embeddings): vocab embeddings for this encoder.
     """
+    #import ipdb; ipdb.set_trace(context=10)
     if opt.encoder_type == "transformer":
         return TransformerEncoder(opt.enc_layers, opt.rnn_size,
                                   opt.dropout, embeddings)
@@ -71,9 +75,18 @@ def make_encoder(opt, embeddings):
         return MeanEncoder(opt.enc_layers, embeddings)
     else:
         # "rnn" or "brnn"
-        return RNNEncoder(opt.rnn_type, opt.brnn, opt.enc_layers,
-                          opt.rnn_size, opt.dropout, embeddings,
-                          opt.bridge)
+        if opt.rnn_enc_att == True:
+            return InnerAttentionEncoder(opt.rnn_type, opt.brnn, opt.enc_layers,
+                                              opt.rnn_size, opt.gpuid,  opt.dropout,
+                                              embeddings, opt.att_heads )
+            #if opt.rnn_type == "GRU":
+            #    return BiGRUInnerAttentionEncoder()
+            #else:
+            #    return BiLSTMInnerAttentionEncoder()
+        else:
+            return RNNEncoder(opt.rnn_type, opt.brnn, opt.enc_layers,
+                              opt.rnn_size, opt.dropout, embeddings,
+                              opt.bridge)
 
 
 def make_decoder(opt, embeddings):
@@ -83,6 +96,7 @@ def make_decoder(opt, embeddings):
         opt: the option in current environment.
         embeddings (Embeddings): vocab embeddings for this decoder.
     """
+    #import ipdb; ipdb.set_trace(context=10)
     if opt.decoder_type == "transformer":
         return TransformerDecoder(opt.dec_layers, opt.rnn_size,
                                   opt.global_attention, opt.copy_attn,
@@ -92,6 +106,16 @@ def make_decoder(opt, embeddings):
                           opt.global_attention, opt.copy_attn,
                           opt.cnn_kernel_width, opt.dropout,
                           embeddings)
+    elif opt.rnn_enc_att == True:
+        return InnerAttentionDecoder(opt.rnn_type, opt.brnn,
+                                    opt.dec_layers, opt.rnn_size,
+                                    opt.global_attention,
+                                    opt.coverage_attn,
+                                    opt.context_gate,
+                                    opt.copy_attn,
+                                    opt.dropout,
+                                    embeddings, opt.att_heads,
+                                    opt.reuse_copy_attn)
     elif opt.input_feed:
         return InputFeedRNNDecoder(opt.rnn_type, opt.brnn,
                                    opt.dec_layers, opt.rnn_size,

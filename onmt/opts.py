@@ -49,7 +49,8 @@ def model_opts(parser):
                        help="""Type of source model to use. Allows
                        the system to incorporate non-text inputs.
                        Options are [text|img|audio].""")
-
+    group.add_argument('-rnn_enc_att', type=bool, default=False)
+    group.add_argument('-att_heads', type=int, default=1)
     group.add_argument('-encoder_type', type=str, default='rnn',
                        choices=['rnn', 'brnn', 'mean', 'transformer', 'cnn'],
                        help="""Type of encoder layer to use. Non-RNN layers
