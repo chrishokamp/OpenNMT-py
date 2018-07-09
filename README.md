@@ -41,11 +41,9 @@ s_0 = tanh(W_init * h_avrg);
 
 |                |                  |
 | :------------- |:----------------:|
-| In order to implement the architecture used by Cífka and Bojar (2018), <br> one can use the following specifications command <br> <br> ` python train.py -data path/to/data -save_model path/to/outfolder `<br>`     -rnn_type GRU -encoder_type brnn -rnn_enc_att True -att_heads 4 -global_attention mlp `    | ![alt text][fig1]|
+| In order to implement the architecture used by Cífka and Bojar (2018), <br> one can use the following specifications command <br> <br> ` python train.py -data path/to/data -save_model path/to/outfolder `<br>`     -rnn_type GRU -encoder_type brnn -rnn_enc_att True -att_heads 4 -global_attention mlp -enc_layers 1 -dec_layers 1`    | ![alt text][fig1]|
 |              |                   |
 
-
-%*maybe this, but still has bugs:*
 
 ` python train.py -data path/to/data -save_model path/to/outfolder -rnn_type GRU -encoder_type brnn -rnn_enc_att True -att_heads 4 -global_attention mlp -enc_layers 1 -dec_layers 1` 
 
