@@ -295,15 +295,14 @@ class InnerAttentionDecoder(nn.Module):
                   (instead of taking the average over the hidden states of
                    the RNN, as in rSennrich(2017) over the )
         '''
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         s_0 = self.tanh(self.W_init(encoder_final))
         ss = s_0[:,:,:self.hidden_dim]
         for i in range(self.num_layers - 1):
             init = (i+1) * self.hidden_dim
             end = (i+2) * self.hidden_dim
-            print(init,end)
             ss = torch.cat([ss,s_0[:,:,init:end]])
-        s_0
+        s_0 = ss
         return RNNDecoderState(self.hidden_dim, s_0)
 
 
