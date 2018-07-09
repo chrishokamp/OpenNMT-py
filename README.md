@@ -20,6 +20,9 @@ This branch contains the following **NEW** flags for `train.py` routine:
 
 Currently the file `extraModels.py` only contains a one "basic" form for the ATT-ATT model. It is heavily based in the OpenNMT RNNs encoder and decoder.
 
+[fig1]: https://github.com/Helsinki-NLP/OpenNMT-py/blob/ATT-ATT_OpenNMT-py0.3/att-att.png "att-att Figure 1"
+
+
  - **ENCODER:** For the encoder, we use 
     1- a 2-layered biGRU; and 
     2- an attention layer with `r = att_heads` attention heads. 
@@ -34,7 +37,17 @@ Currently the file `extraModels.py` only contains a one "basic" form for the ATT
 s_0 = tanh(W_init * h_avrg);
 '''
     where h_avrg is the average of the sentence embedding, M, (instead of taking the average over the hidden states of the RNN, as in Sennrich(2017))
- 2- 
+
+
+|                |                  |
+| :------------- |:----------------:|
+| In order to implement the architecture used by Cífka and Bojar (2018), <br> one can use the following specifications command <br> <br> ` python train.py -data path/to/data -save_model path/to/outfolder `<br>`     -rnn_type GRU -encoder_type brnn -rnn_enc_att True -att_heads 4 -global_attention mlp `    | ![alt text][fig1]|
+|              |                   |
+
+
+%*maybe this, but still has bugs:*
+
+` python train.py -data path/to/data -save_model path/to/outfolder -rnn_type GRU -encoder_type brnn -rnn_enc_att True -att_heads 4 -global_attention mlp -enc_layers 1 -dec_layers 1` 
 
 # OpenNMT-py: Open-Source Neural Machine Translation
 This is a [Pytorch](https://github.com/pytorch/pytorch)
