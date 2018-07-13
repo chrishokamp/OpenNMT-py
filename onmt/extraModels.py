@@ -262,6 +262,11 @@ class InnerAttentionDecoder(nn.Module):
 
         # Calculate the attention.
         M_size = torch.zeros(memory_lengths.size()) + self.attention_hops
+        try:
+            memory_bank.get_device()
+            M_size = M_size.cuda()
+        except:
+            pass
         decoder_outputs, p_attn = self.attn(
             rnn_output.transpose(0, 1).contiguous(),
             memory_bank.transpose(0, 1),

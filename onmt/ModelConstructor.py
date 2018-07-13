@@ -167,6 +167,7 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None):
     Returns:
         the NMTModel.
     """
+    #import ipdb; ipdb.set_trace(context=10)
     assert model_opt.model_type in ["text", "img", "audio"], \
         ("Unsupported model type %s" % (model_opt.model_type))
 
@@ -251,7 +252,7 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None):
 
     # Add generator to model (this registers it as parameter of model).
     model.generator = generator
-
+    #import ipdb; ipdb.set_trace(context=10)
     # Make the whole model leverage GPU if indicated to do so.
     if gpu:
         model.cuda()
