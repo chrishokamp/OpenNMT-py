@@ -20,7 +20,7 @@ This branch contains the following **NEW** flags for `train.py` routine:
 
 Currently the file `extraModels.py` only contains a one "basic" form for the ATT-ATT model. It is heavily based in the OpenNMT RNNs encoder and decoder.
 
-[fig1]: https://github.com/Helsinki-NLP/OpenNMT-py/blob/ATT-ATT_OpenNMT-py0.3/att-att.png "att-att Figure 1"
+[fig1]: https://github.com/Helsinki-NLP/OpenNMT-py/blob/ATT-ATT/att-att.png "att-att Figure 1"
 
 
  - **ENCODER:** For the encoder, we use 
