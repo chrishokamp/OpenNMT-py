@@ -90,7 +90,7 @@ class InnerAttentionEncoder(nn.Module):
         #import ipdb; ipdb.set_trace(context=10)
         h_avrg = output3.mean(dim=0, keepdim=True)
 
-        return h_avrg, output3
+        return h_avrg, output3 # enc_final=h_avrg memory_bank=output3
         #return h_n, output3
 
     def mixAtt(self, outp):
