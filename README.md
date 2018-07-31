@@ -41,9 +41,14 @@ s_0 = tanh(W_init * h_avrg);
 
 |                |    Cífka and Bojar's Compound Attention (ATT-ATT)              |
 | :------------- |:----------------:|
-| In order to implement the architecture used by Cífka and Bojar <br>  (2018), one can use the following specifications command <br> <br> ``` python train.py -data path/to/data -save_model ```<br>``` path/to/outfolder  -rnn_type GRU -encoder_type brnn ```<br>```  -rnn_enc_att True -att_heads 4 -global_attention mlp ```<br>```  -enc_layers 1 -dec_layers 1```    | ![alt text][fig1]|
+| In order to implement the architecture used by Cífka and Bojar <br>  (2018), one can use the following specifications command <br> <br> ``` python train.py -data path/to/data -save_model ```<br>``` path/to/outfolder  -rnn_type GRU -encoder_type brnn ```<br>```  -rnn_enc_att True -att_heads 4 -global_attention mlp ```<br>```  -enc_layers 1 -dec_layers 1 -rnn_size 1200 -batch_size 32```    | ![alt text][fig1]|
 |              |                   |
 
+    srun python train.py -data ${IN}/${LPAIR} -save_model ${OUT}/${EXPERIMPREFFIX} \
+                    -rnn_type GRU -encoder_type brnn  -rnn_enc_att True \
+                    -att_heads ${rr} -global_attention mlp -enc_layers 1 -dec_layers 1 \
+                    -rnn_size 500 -word_vec_size 600 -gpuid 0 -epochs 20 -batch_size 32
+                    #-rnn_size 600 -gpuid 0 -epochs 20 -batch_size 32 #-word_vec_size defaulted to 500
 
 
 # OpenNMT-py: Open-Source Neural Machine Translation
