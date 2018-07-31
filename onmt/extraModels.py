@@ -54,6 +54,7 @@ class InnerAttentionEncoder(nn.Module):
                         dropout=dropout,
                         bidirectional=bidirectional)
         self.drop = nn.Dropout(dropout)
+        """Attention Heads Layer:"""
         u = hidden_size
         d = hidden_size
         r = attentionhops
