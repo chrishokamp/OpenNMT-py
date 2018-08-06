@@ -97,7 +97,7 @@ class InnerAttentionEncoder(nn.Module):
         """Use the average of the attention heads to initialize the decoder"""
         h_avrg = self.M.mean(dim=0, keepdim=True)
 
-        return h_avrg, output3 # enc_final=h_avrg memory_bank=output3
+        return h_avrg, self.M # enc_final=h_avrg memory_bank=self.M
         #return h_n, output3
 
     def mixAtt(self, outp):
