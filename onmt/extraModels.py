@@ -95,7 +95,7 @@ class InnerAttentionEncoder(nn.Module):
         self.M = torch.transpose(output2, 0, 1).contiguous() #[r,bsz,nhid]
         #import ipdb; ipdb.set_trace(context=10)
         """Use the average of the attention heads to initialize the decoder"""
-        h_avrg = output3.mean(dim=0, keepdim=True)
+        h_avrg = self.M.mean(dim=0, keepdim=True)
 
         return h_avrg, output3 # enc_final=h_avrg memory_bank=output3
         #return h_n, output3
