@@ -64,7 +64,7 @@ class InnerAttentionEncoder(nn.Module):
         self.softmax = nn.Softmax()
         #        self.init_weights()
         self.attention_hops = r
-        self.M = torch.empty([r,32,hidden_size])
+        self.M = None
         
 
     def forward(self, src, lengths=None, encoder_state=None):
