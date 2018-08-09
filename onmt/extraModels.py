@@ -65,7 +65,6 @@ class InnerAttentionEncoder(nn.Module):
         #        self.init_weights()
         self.attention_hops = r
         self.M = None
-        
 
     def forward(self, src, lengths=None, encoder_state=None):
         #import ipdb; ipdb.set_trace(context=10)
@@ -87,17 +86,14 @@ class InnerAttentionEncoder(nn.Module):
         if lengths is not None and not self.no_pack_padded_seq:
             output = unpack(output)[0] #output.size()=[seq_len, batch_size, hidden_size * num_directions]
             #                          #h_n.size()=[num_layers*num_directions, batch_size, hidden_size]
-        """
-        Compute the sentence embedding matrix M, using multi-headed attention
-        """
         output2, alphas = self.mixAtt(output)
         #take transpose to match dimensions s.t. r=new_seq_len:
+        #output3 = torch.transpose(output2, 0, 1).contiguous() #[r,bsz,nhid]
         self.M = torch.transpose(output2, 0, 1).contiguous() #[r,bsz,nhid]
         #import ipdb; ipdb.set_trace(context=10)
-        """Use the average of the attention heads to initialize the decoder"""
-        h_avrg = self.M.mean(dim=0, keepdim=True)
+        h_avrg = (self.M).mean(dim=0, keepdim=True)
 
-        return h_avrg, self.M # enc_final=h_avrg memory_bank=self.M
+        return h_avrg, self.M # enc_final=h_avrg memory_bank=output3
         #return h_n, output3
 
     def mixAtt(self, outp):
