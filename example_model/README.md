@@ -1,6 +1,6 @@
-# Example models 
+# Example model 
 
-Trained on:
+Trained EN->DE on the following data:
 - caps: Multi30k en-de captions
 - COCO: MSCOCO captions dataset. Artificial parallel German data translated with a state-of-the art architecture MT model trained with marian-nmt.
 
@@ -18,4 +18,15 @@ Trained on:
     def import_checkpoint(fpath):
         checkpoint = torch.load(fpath, map_location=lambda storage, loc: storage)
         return checkpoint
+    
+    checkpoint = import_checkpoint('path/to/COCO+caps_acc_71.86_ppl_5.53_e13.pt')
+    
+    #know the object
+    print(type(checkpoint))
+    print(checkpoint.keys())
+    
+    #the model is loaded as:
+    model = checkpoint['model']
+    print(type(model))
+    print(model.keys())
     ```
