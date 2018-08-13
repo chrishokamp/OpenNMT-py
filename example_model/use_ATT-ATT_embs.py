@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, unicode_literals
 
 import sys
+import os
 import io
 import numpy as np
 import logging
@@ -47,13 +48,17 @@ def batcher(params, batch):
     embeddings = np.vstack(embeddings)
     return embeddings
     '''
-    import ipdb; ipdb.set_trace(context=5)
+    #import ipdb; ipdb.set_trace(context=5)
     batch_size = len(batch)
+    #----------------------------------------------------------
+    # Onmt patch:
+    #----------------------------------------------------------
+    #    generate a temporal textfile to pass to Onmt modules
     batchfile = "./current-batch.tmp"
     with open(batchfile, "w") as output:
         writer = csv.writer(output, lineterminator='\n', delimiter=" ")
         writer.writerows(batch)
-
+    #    pass batch textfile -> builds features
     data = onmt.io.build_dataset(fields=fields,
                              data_type='text',
                              src_path=batchfile,
@@ -64,27 +69,28 @@ def batcher(params, batch):
                              window_stride=0.01,
                              window='hamming',
                              use_filter_pred=False)
-
+    #    generate iterator (of size 1) over the dataset
     data_iter = onmt.io.OrderedIterator(
         dataset=data, device=opt.gpu,
         batch_size=batch_size, train=False, sort=False,
         sort_within_batch=True, shuffle=False)
-
+    #    pass the batch information through the encoder
     for BATCH in data_iter:
         src = onmt.io.make_features(BATCH, side='src', data_type="text")
         src_lengths = None
         _, src_lengths = BATCH.src
         enc_states, memory_bank = model.encoder(src, src_lengths)
-    #FIXME: make sure embeddings has 1 flattened M matrix per row.
-    # I think this is not the case because
+    #----------------------------------------------------------
+
     # memory_bank.shape = [att_heads,batch_size,rnn_size]
-    embeddings =  np.vstack(memory_bank.reshape(batch_size,-1).detach())
+    # need to make sure embeddings has 1 flattened M matrix per row.
+    #import ipdb; ipdb.set_trace()
+    memory_bank = memory_bank.transpose(0, 1).contiguous() #[batch_size,att_heads,rnn_size]
+    #embeddings =  np.vstack(memory_bank.reshape(batch_size,-1).detach())
 
-
-    #checkpoint = onmt_utils.import_checkpoint(PATH_TO_VEC)
-    #ws2 = checkpoint['model']['encoder.ws2.weight']
-    #ws1 = checkpoint['model']['encoder.ws1.weight']
-    #embeddings = np.vstack(embeddings)
+    embeddings = [mat.transpose(0,1).flatten().detach() for mat in memory_bank]
+    embeddings = np.vstack(embeddings)
+    os.remove(batchfile)
     return embeddings
 
 
