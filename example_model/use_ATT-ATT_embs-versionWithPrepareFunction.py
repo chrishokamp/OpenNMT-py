@@ -28,27 +28,23 @@ def invert_permutation(p):
     p = p.tolist()
     return torch.tensor([p.index(l) for l in range(len(p))])
 
-# SentEval prepare and batcher
-''' I THINK I DON'T NEED THE prepare FUNCTION...
-def prepare(params, samples):
-    returnload_
-'''
 
-def batcher(params, batch):
-    #import ipdb; ipdb.set_trace(context=5)
-    #batch_size = len(batch)
-    '''#----------------------------------------------------------
-    # Onmt patch:
-    #----------------------------------------------------------'''
+# SentEval prepare and batcher
+def prepare(params, samples):
+    '''----------------------------------------------------------
+     Onmt patch:
+    ----------------------------------------------------------'''
+    #params['batch_size']
     #    generate a temporal textfile to pass to Onmt modules
-    batchfile = "./current-batch.tmp"
-    with open(batchfile, "w") as output:
+    #import ipdb; ipdb.set_trace(context=5)
+    samplefile = "./current-sample.tmp"
+    with open(samplefile, "w") as output:
         writer = csv.writer(output, lineterminator='\n', delimiter=" ", quotechar='|')
-        writer.writerows(batch)
+        writer.writerows(samples)
     #    pass batch textfile -> builds features
-    data = onmt.io.build_dataset(fields=fields,
+    params.data = onmt.io.build_dataset(fields=fields,
                              data_type='text',
-                             src_path=batchfile,
+                             src_path=samplefile,
                              tgt_path=None,
                              src_dir='',
                              sample_rate='16000',
@@ -56,27 +52,62 @@ def batcher(params, batch):
                              window_stride=0.01,
                              window='hamming',
                              use_filter_pred=False)
-    #    generate iterator (of size 1) over the dataset
-    data_iter = onmt.io.OrderedIterator(
-        dataset=data, device=opt.gpu,
-        batch_size=params.batch_size, train=False, sort=False,
-        sort_within_batch=True, shuffle=False)
-    #    pass the batch information through the encoder
-    for BATCH in data_iter:
-        permutation = BATCH.indices
-        src = onmt.io.make_features(BATCH, side='src', data_type="text")
-        src_lengths = None
-        _, src_lengths = BATCH.src
-        enc_states, memory_bank = model.encoder(src, src_lengths)
 
-    memory_bank = memory_bank[:,invert_permutation(permutation),:] #shape=[att_heads,batch_size,rnn_size]
+
+    #    generate iterator (of size 1) over the dataset
+    params.data_iter = onmt.io.OrderedIterator(
+            dataset=params.data, device=opt.gpu,
+            batch_size=len(params.data), train=False, sort=False,
+            sort_within_batch=True, shuffle=False)
+    #params.batch_nr = 0
+
+    return
+
+
+def batcher(params, batch):
+    #import ipdb; ipdb.set_trace(context=5)
+    batch_size = len(batch)
+    #params.batch_nr += 1
+
+    #----------------------------------------------------------
+    # Onmt patch: to get embeddings from encoder
+    #----------------------------------------------------------
+    ''' EXTRACT FEATURES FROM params.data:
+    text_features = [ ]
+    for sent in batch:
+        text_features.append(params.data.extract_text_features(sent))'''
+    #onmt.io.make_features(batch,side='src',data_type='text')
+    #getattr(data.examples[0], 'src') == data.examples[0].src
+    for BATCH in params.data_iter:
+        #find the indices of the sentences given in the batch:
+        batch_inds = []
+        for sentence in batch:
+            for example in params.data:
+                if (sentence == [i  for i in example.src]):
+                    batch_inds.append(example.indices)
+                    break
+        #import ipdb; ipdb.set_trace()
+        # match batch_inds with the BATCH indices (corresponding to original order)
+        _, Bindices = torch.sort(BATCH.indices)
+        # obtain the sentence vector representation for the batch sentence. In indices[batch_inds]
+        batch_data = BATCH.src[0][:,torch.LongTensor(Bindices[batch_inds])]
+        batch_data = batch_data.unsqueeze(2)
+        batch_data_lengths = BATCH.src[1][torch.LongTensor(Bindices[batch_inds])]
+        # sort in decreasing order of the lengths
+        batch_data_lengths, length_indices= torch.sort(batch_data_lengths, descending=True)
+        batch_data = batch_data[:,length_indices,:]
+        # pass the data of the batch through the encoder
+        enc_states, memory_bank = model.encoder(batch_data, batch_data_lengths)
+        # reorder as the batch was given
+        memory_bank = memory_bank[:,invert_permutation(length_indices),:] #shape=[att_heads,batch_size,rnn_size]
     #----------------------------------------------------------
     # make sure embeddings has 1 flattened M matrix per row.
     #import ipdb; ipdb.set_trace()
     memory_bank = memory_bank.transpose(0, 1).contiguous() #shape=[batch_size,att_heads,rnn_size]
     embeddings = [mat.transpose(0,1).flatten().detach() for mat in memory_bank]
     embeddings = np.vstack(embeddings)
-    os.remove(batchfile)
+
+    #print('batch number: ' + str(params.batch_nr))
     return embeddings
 
 
@@ -187,14 +218,15 @@ params_senteval['classifier'] = {'nhid': 0, 'optim': 'rmsprop', 'batch_size': 12
 logging.basicConfig(format='%(asctime)s : %(message)s', level=logging.DEBUG)
 
 if __name__ == "__main__":
-    se = senteval.engine.SE(params_senteval, batcher)#, prepare)
+    se = senteval.engine.SE(params_senteval, batcher, prepare)
     transfer_tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16',
                       'MR', 'CR', 'MPQA', 'SUBJ', 'SST2', 'SST5', 'TREC', 'MRPC',
                       'SICKEntailment', 'SICKRelatedness', 'STSBenchmark',
                       'Length', 'WordContent', 'Depth', 'TopConstituents',
                       'BigramShift', 'Tense', 'SubjNumber', 'ObjNumber',
                       'OddManOut', 'CoordinationInversion']
-    #transfer_tasks = ['STS14']
+    transfer_tasks = ['STS14']
     import ipdb; ipdb.set_trace(context=5)
     results = se.eval(transfer_tasks)
+    os.remove(batchfile)
     print(results)
