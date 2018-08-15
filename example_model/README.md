@@ -5,28 +5,12 @@ Trained EN->DE on the following data:
 - COCO: MSCOCO captions dataset. Artificial parallel German data translated with a state-of-the art architecture MT model trained with marian-nmt.
 
 # Usage
- - *Translate*: use the OpenNMT way of translationg
- - *Extract the meaning representation matrix*: to load it to python one can use, for instance,
+ - **Translate**: use the OpenNMT way of translationg
+ - **Extract the meaning representation matrix**: call a script, similar to `use_ATT-ATT_embs.py` and call is as one calls the translator script of OpenNMT, for instance,
+ 
     ```
-    import sys
-    import torch
-    
-    PATH_TO_ONMT='/path/to/ATT-ATTbranch'
-    sys.path.insert(0, PATH_TO_ONMT)'
-    import onmt
-    
-    def import_checkpoint(fpath):
-        checkpoint = torch.load(fpath, map_location=lambda storage, loc: storage)
-        return checkpoint
-    
-    checkpoint = import_checkpoint('path/to/COCO+caps_acc_71.86_ppl_5.53_e13.pt')
-    
-    #know the object
-    print(type(checkpoint))
-    print(checkpoint.keys())
-    
-    #the model is loaded as:
-    model = checkpoint['model']
-    print(type(model))
-    print(model.keys())
+    python /path/to/ATT-ATTbranch/example_model/use_ATT-ATT_embs.py \
+         -model /path/to/ATT-ATTbranch/example_model/COCO+caps_att-heads_12_size_1200_acc_71.76_ppl_5.51_e20.pt \
+         -src data/src-test.txt 
     ```
+*yes, the `-src` flag is still there, but won't be used, so you can put any string*
