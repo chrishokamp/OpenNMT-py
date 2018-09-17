@@ -1,9 +1,9 @@
 """ Onmt NMT Model base class definition """
+
 import torch.nn as nn
-import copy
-import random
 
 from onmt.attention_bridge import AttentionBridge
+
 
 class MultiTaskModel(nn.Module):
     """
@@ -25,13 +25,14 @@ class MultiTaskModel(nn.Module):
         self.encoders = None
 
         self.use_attention_bridge = model_opt.use_attention_bridge
-        self.attention_bridge = AttentionBridge(model_opt.rnn_size, model_opt.attention_heads)#, model_opt.dropout)
+        # Chris: these fields currently get initialized externally
+        self.attention_bridge = None
 
         self.decoder_ids = None
         self.decoders = None
 
         # generator ids is linked with decoder_ids
-        # self.generators = None
+        self.generators = None
 
     def forward(self, src, tgt, src_task, tgt_task, lengths, dec_state=None):
         """Forward propagate a `src` and `tgt` pair for training.
@@ -67,7 +68,6 @@ class MultiTaskModel(nn.Module):
         if self.use_attention_bridge:
             enc_final, memory_bank = self.attention_bridge(memory_bank)
 
-
         decoder_outputs, dec_state, attns = \
             decoder(tgt, memory_bank,
                     enc_state if dec_state is None
@@ -79,7 +79,6 @@ class MultiTaskModel(nn.Module):
             dec_state = None
             attns = None
         return decoder_outputs, attns, dec_state
-
 
 
 class NMTModel(nn.Module):

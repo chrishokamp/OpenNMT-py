@@ -19,6 +19,7 @@ from onmt.encoders.image_encoder import ImageEncoder
 from onmt.decoders.decoder import InputFeedRNNDecoder, StdRNNDecoder
 from onmt.decoders.transformer import TransformerDecoder
 from onmt.decoders.cnn_decoder import CNNDecoder
+from onmt.attention_bridge import AttentionBridge
 
 from onmt.modules import Embeddings, CopyGenerator
 from onmt.utils.misc import use_gpu
@@ -202,6 +203,17 @@ def build_decoder_and_generator(model_opt, fields):
                                   fields["tgt"].vocab)
 
     return decoder, generator
+
+
+def build_attention_bridge(model_opt):
+    """
+    Create the attention bridge according to user-specified params
+    """
+
+    # TODO: expand the options supported by the AttentionBrige
+
+    return AttentionBridge(model_opt.rnn_size,
+                           model_opt.attention_heads)
 
 
 def build_base_model(model_opt, fields, gpu, checkpoint=None):

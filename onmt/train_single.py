@@ -18,7 +18,7 @@ from collections import defaultdict, OrderedDict
 from onmt.inputters.inputter import (build_dataset_iter, lazily_load_dataset,
     _load_fields, _collect_report_features)
 from onmt.model_builder import (build_model, build_embeddings_then_encoder,
-    build_decoder_and_generator)
+    build_decoder_and_generator, build_attention_bridge)
 from onmt.utils.optimizers import build_optim
 from onmt.trainer import build_trainer
 from onmt.models import build_model_saver
@@ -140,12 +140,8 @@ def main(opt):
 
         decoders[tgt_lang] = decoder
 
-        # TODO: fields from vocab?
         src_vocabs[src_lang] = fields['src'].vocab
         tgt_vocabs[tgt_lang] = fields['tgt'].vocab
-
-        #src_vocabs[src_lang] = fields['src']
-        #tgt_vocabs[tgt_lang] = fields['tgt']
 
         generators[tgt_lang] = generator
 
@@ -168,6 +164,8 @@ def main(opt):
     # TODO: assert that losses, etc... get built correctly when restoring from
     # TODO:   checkpoint
 
+
+
     # NOTE: checkpoint currently hard-coded to None because we set it below
     model = build_model(model_opt, opt, fields, checkpoint=None)
 
@@ -179,6 +177,9 @@ def main(opt):
     encoders = nn.ModuleList(encoders.values())
     model.encoder_ids = encoder_ids
     model.encoders = encoders
+
+    if model_opt.use_attention_bridge:
+        model.attention_bridge = build_attention_bridge(model_opt)
 
     decoder_ids = {lang_code: idx
                    for lang_code, idx
@@ -199,7 +200,6 @@ def main(opt):
     # Load the model states from checkpoint or initialize them.
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model'])
-        #generator.load_state_dict(checkpoint['generator'])
     else:
         logger.info("Initializing model parameters")
         if model_opt.param_init != 0.0:
