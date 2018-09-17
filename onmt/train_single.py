@@ -158,15 +158,10 @@ def main(opt):
 
     # build the model with all of the encoders and all of the decoders
     # note here we just replace the encoders of the final model
-    # WORKING: move all of this to a function
-    # TODO: don't call build model at all, new model creation logic here
-    # TODO: note that build_base_model is also used when _restarting_ training
-    # TODO: assert that losses, etc... get built correctly when restoring from
-    # TODO:   checkpoint
-
-
-
     # NOTE: checkpoint currently hard-coded to None because we set it below
+    # TODO: model should be initialized with encoders, attention_bridge,
+    # TODO:   decoders, and generators, instead of setting each one manually
+    # TODO:   as below
     model = build_model(model_opt, opt, fields, checkpoint=None)
 
     # TODO: this is a hack -- move to actually initializing the model with

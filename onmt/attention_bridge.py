@@ -17,7 +17,7 @@ class AttentionBridge(nn.Module):
     """
     Multi-headed attention. Bridge between encoders->decoders
     """
-    def __init__(self, hidden_size, attention_heads,dropout=0.05):
+    def __init__(self, hidden_size, attention_heads, dropout=0.05):
         """Attention Heads Layer:"""
         super(AttentionBridge, self).__init__()
         u = hidden_size
@@ -32,18 +32,13 @@ class AttentionBridge(nn.Module):
         self.attention_hops = r
         self.M = None
 
-
     def forward(self, enc_output):
-        #import ipdb; ipdb.set_trace(context=5)
         output, alphas = self.mixAtt(enc_output)
-        #take transpose to match dimensions s.t. r=new_seq_len:
+        # take transpose to match dimensions s.t. r=new_seq_len
         self.M = torch.transpose(output, 0, 1).contiguous() #[r,bsz,nhid]
-        #import ipdb; ipdb.set_trace(context=10)
         h_avrg = (self.M).mean(dim=0, keepdim=True)
 
         return h_avrg, self.M # enc_final=h_avrg memory_bank=output3
-
-
 
     def mixAtt(self, outp):
         """Notation based on Lin et al. (2017) A structured self-attentive sentence embedding"""
