@@ -23,9 +23,8 @@ class AttentionBridge(nn.Module):
                  bridge_type='matrix',
                  pooling=None,
                  dropout=0.05):
-        """Attention Heads Layer:
 
-
+        """
         If bridge_type is 'matrix', the intermediate representation follows
           Lin et al 2017. If it's 'feed-forward', the bridge is a feed-forward
           mapping of the encoder states.
@@ -41,11 +40,10 @@ class AttentionBridge(nn.Module):
         self.ws2 = nn.Linear(d, r, bias=False)
         self.tanh = nn.Tanh()
         self.softmax = nn.Softmax()
-        #        self.init_weights()
         self.attention_hops = r
 
-    # Chris: this currently misses the multi-head attention distribution
-    # Chris: regularization term from Lin et al
+    # this currently misses the multi-head attention distribution
+    #   regularization term from Lin et al
     def forward(self, enc_output):
         # TODO: implement different bridge types
         output, alphas = self.mixAtt(enc_output)
@@ -53,17 +51,17 @@ class AttentionBridge(nn.Module):
         M = torch.transpose(output, 0, 1).contiguous() #[r,bsz,nhid]
 
         # Chris: this is the pooling operation
-        h_avrg = (M).mean(dim=0, keepdim=True)
+        h_avrg = self.pool(M)
 
-        return h_avrg, M # enc_final=h_avrg memory_bank=output3
+        return h_avrg, M
 
-    def pool(self, states):
+    def pool(self, states, op='avg'):
         """
         Pools the states into a single vector
-        :param states:
-        :return:
         """
-        pass
+
+        return states.mean(dim=0, keepdim=True)
+
 
     # TODO: debug to match Lin et al -- softmax looks wrong
     def mix_attention(self, output):
