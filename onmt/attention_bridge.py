@@ -17,9 +17,22 @@ class AttentionBridge(nn.Module):
     """
     Multi-headed attention. Bridge between encoders->decoders
     """
-    def __init__(self, hidden_size, attention_heads, dropout=0.05):
-        """Attention Heads Layer:"""
+    def __init__(self,
+                 hidden_size,
+                 attention_heads,
+                 bridge_type='matrix',
+                 pooling=None,
+                 dropout=0.05):
+        """Attention Heads Layer:
+
+
+        If bridge_type is 'matrix', the intermediate representation follows
+          Lin et al 2017. If it's 'feed-forward', the bridge is a feed-forward
+          mapping of the encoder states.
+
+        """
         super(AttentionBridge, self).__init__()
+
         u = hidden_size
         d = hidden_size
         r = attention_heads
@@ -30,19 +43,32 @@ class AttentionBridge(nn.Module):
         self.softmax = nn.Softmax()
         #        self.init_weights()
         self.attention_hops = r
-        self.M = None
 
+    # Chris: this currently misses the multi-head attention distribution
+    # Chris: regularization term from Lin et al
     def forward(self, enc_output):
+        # TODO: implement different bridge types
         output, alphas = self.mixAtt(enc_output)
         # take transpose to match dimensions s.t. r=new_seq_len
-        self.M = torch.transpose(output, 0, 1).contiguous() #[r,bsz,nhid]
-        h_avrg = (self.M).mean(dim=0, keepdim=True)
+        M = torch.transpose(output, 0, 1).contiguous() #[r,bsz,nhid]
 
-        return h_avrg, self.M # enc_final=h_avrg memory_bank=output3
+        # Chris: this is the pooling operation
+        h_avrg = (M).mean(dim=0, keepdim=True)
 
-    def mixAtt(self, outp):
+        return h_avrg, M # enc_final=h_avrg memory_bank=output3
+
+    def pool(self, states):
+        """
+        Pools the states into a single vector
+        :param states:
+        :return:
+        """
+        pass
+
+    # TODO: debug to match Lin et al -- softmax looks wrong
+    def mix_attention(self, output):
         """Notation based on Lin et al. (2017) A structured self-attentive sentence embedding"""
-        outp = torch.transpose(outp, 0, 1).contiguous()
+        outp = torch.transpose(output, 0, 1).contiguous()
         size = outp.size()  # [bsz, len, nhid]
         compressed_embeddings = outp.view(-1, size[2])  # [bsz*len, nhid*2]
         hbar = self.tanh(self.ws1(self.drop(compressed_embeddings)))  # [bsz*len, attention-unit]
@@ -52,3 +78,4 @@ class AttentionBridge(nn.Module):
         alphas = self.softmax(alphas)  # [bsz*hop, len]
         alphas = alphas.view(size[0], self.attention_hops, size[1])  # [bsz, hop, len]
         return torch.bmm(alphas, outp), alphas
+
