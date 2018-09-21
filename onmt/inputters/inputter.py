@@ -297,8 +297,17 @@ def build_vocab(train_dataset_files, fields, data_type, share_vocab,
 
     # Load vocabulary
     src_vocab = load_vocabulary(src_vocab_path, tag="source")
+    # now hack the indexes so that OrderedDict can be treated in the same way
+    #   as a Counter (sorting by value with `reverse=True` will maintain
+    #   original order)
+    for k, idx in src_vocab.items():
+        src_vocab[k] = -idx
     tgt_vocab = load_vocabulary(tgt_vocab_path, tag="target")
+    for k, idx in tgt_vocab.items():
+        tgt_vocab[k] = -idx
 
+    # TODO: check that pre-specified vocab logic matches preprocessing opts
+    # min_freq should = 1 if vocabs were pre-specified
     for path in train_dataset_files:
         dataset = torch.load(path)
         logger.info(" * reloading %s." % path)
@@ -307,10 +316,9 @@ def build_vocab(train_dataset_files, fields, data_type, share_vocab,
                 val = getattr(ex, k, None)
                 if val is not None and not fields[k].sequential:
                     val = [val]
-                elif k == 'src' and src_vocab:
-                    val = [item for item in val if item in src_vocab]
-                elif k == 'tgt' and tgt_vocab:
-                    val = [item for item in val if item in tgt_vocab]
+                elif (k == 'src' and src_vocab) or (k == 'tgt' and tgt_vocab):
+                    continue
+
                 counter[k].update(val)
 
     _build_field_vocab(fields["tgt"], counter["tgt"],
@@ -360,22 +368,26 @@ def load_vocabulary(vocabulary_path, tag=""):
     :param tag: tag for vocabulary (only used for logging)
     :return: vocabulary or None if path is null
     """
+
     vocabulary = None
     if vocabulary_path:
-        vocabulary = set([])
-        logger.info("Loading {} vocabulary from {}".format(tag,
-                                                           vocabulary_path))
-
         if not os.path.exists(vocabulary_path):
             raise RuntimeError(
                 "{} vocabulary not found at {}!".format(tag, vocabulary_path))
-        else:
-            with open(vocabulary_path) as f:
-                for line in f:
-                    if len(line.strip()) == 0:
-                        continue
-                    word = line.strip().split()[0]
-                    vocabulary.add(word)
+
+        logger.info("Loading {} vocabulary from {}".format(tag,
+                                                           vocabulary_path))
+    else:
+        vocabulary = OrderedDict()
+        with open(vocabulary_path) as f:
+            idx = 0
+            for line in f:
+                if len(line.strip()) == 0:
+                    continue
+                word = line.strip().split()[0]
+                vocabulary[word] = idx
+                idx += 1
+
     return vocabulary
 
 
@@ -405,7 +417,7 @@ class DatasetLazyIter(object):
         and lazy loading.
 
     Args:
-        datsets (list): a list of datasets, which are lazily loaded.
+        datasets (list): a list of datasets, which are lazily loaded.
         fields (dict): fields dict for the datasets.
         batch_size (int): batch size.
         batch_size_fn: custom batch process function.
