@@ -377,7 +377,6 @@ def load_vocabulary(vocabulary_path, tag=""):
 
         logger.info("Loading {} vocabulary from {}".format(tag,
                                                            vocabulary_path))
-    else:
         vocabulary = OrderedDict()
         with open(vocabulary_path) as f:
             idx = 0
