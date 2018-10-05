@@ -55,7 +55,8 @@ def build_translator(opt, report_score=True, logger=None, out_file=None):
               for k in ["beam_size", "n_best", "max_length", "min_length",
                         "stepwise_penalty", "block_ngram_repeat",
                         "ignore_when_blocking", "dump_beam", "report_bleu",
-                        "data_type", "replace_unk", "gpu", "verbose", "fast"]}
+                        "data_type", "replace_unk", "gpu", "verbose", "fast",
+                        "image_channel_size"]}
 
     translator = Translator(model, opt.src_lang, opt.tgt_lang, fields, global_scorer=scorer,
                             out_file=out_file, report_score=report_score,
@@ -114,39 +115,11 @@ class Translator(object):
                  verbose=False,
                  out_file=None,
                  fast=False,
-                 use_attention_bridge=False):
-        self.logger = logger
-        self.gpu = gpu
-        self.cuda = gpu > -1
-
-        self.model = model
-        self.src_lang = src_lang
-        self.tgt_lang = tgt_lang
-        self.fields = fields
-        self.n_best = n_best
-        self.max_length = max_length
-        self.global_scorer = global_scorer
-        self.copy_attn = copy_attn
-        self.beam_size = beam_size
-        self.min_length = min_length
-        self.stepwise_penalty = stepwise_penalty
-        self.dump_beam = dump_beam
-        self.block_ngram_repeat = block_ngram_repeat
-        self.ignore_when_blocking = set(ignore_when_blocking)
-        self.sample_rate = sample_rate
-        self.window_size = window_size
-        self.window_stride = window_stride
-        self.window = window
-        self.use_filter_pred = use_filter_pred
-        self.replace_unk = replace_unk
-        self.data_type = data_type
-        self.verbose = verbose
-        self.out_file = out_file
-        self.report_score = report_score
-        self.report_bleu = report_bleu
-        self.report_rouge = report_rouge
-        self.fast = fast
+                 use_attention_bridge=False,
+                 image_channel_size=3):
+        
         self.use_attention_bridge=use_attention_bridge
+        self.image_channel_size = image_channel_size
 
         # for debugging
         self.beam_trace = self.dump_beam != ""
@@ -195,18 +168,20 @@ class Translator(object):
 
         if batch_size is None:
             raise ValueError("batch_size must be set")
-        data = inputters.build_dataset(self.fields,
-                                       self.data_type,
-                                       src_path=src_path,
-                                       src_data_iter=src_data_iter,
-                                       tgt_path=tgt_path,
-                                       tgt_data_iter=tgt_data_iter,
-                                       src_dir=src_dir,
-                                       sample_rate=self.sample_rate,
-                                       window_size=self.window_size,
-                                       window_stride=self.window_stride,
-                                       window=self.window,
-                                       use_filter_pred=self.use_filter_pred)
+        data = inputters. \
+            build_dataset(self.fields,
+                          self.data_type,
+                          src_path=src_path,
+                          src_data_iter=src_data_iter,
+                          tgt_path=tgt_path,
+                          tgt_data_iter=tgt_data_iter,
+                          src_dir=src_dir,
+                          sample_rate=self.sample_rate,
+                          window_size=self.window_size,
+                          window_stride=self.window_stride,
+                          window=self.window,
+                          use_filter_pred=self.use_filter_pred,
+                          image_channel_size=self.image_channel_size)
 
         if self.cuda:
             cur_device = "cuda"
@@ -438,8 +413,8 @@ class Translator(object):
 
             # Map beam_index to batch_index in the flat representation.
             batch_index = (
-                topk_beam_index
-                + beam_offset[:topk_beam_index.size(0)].unsqueeze(1))
+                    topk_beam_index
+                    + beam_offset[:topk_beam_index.size(0)].unsqueeze(1))
             select_indices = batch_index.view(-1)
 
             # Append last prediction.
@@ -499,11 +474,11 @@ class Translator(object):
                 batch_index = batch_index.index_select(0, non_finished)
                 batch_offset = batch_offset.index_select(0, non_finished)
                 alive_seq = predictions.index_select(0, non_finished) \
-                                       .view(-1, alive_seq.size(-1))
+                    .view(-1, alive_seq.size(-1))
                 if alive_attn is not None:
                     alive_attn = attention.index_select(1, non_finished) \
-                                          .view(alive_attn.size(0),
-                                                -1, alive_attn.size(-1))
+                        .view(alive_attn.size(0),
+                              -1, alive_attn.size(-1))
 
             # Reorder states.
             select_indices = batch_index.view(-1)
@@ -540,9 +515,11 @@ class Translator(object):
                 for __ in range(batch_size)]
 
         # Help functions for working with beams and batches
-        def var(a): return torch.tensor(a, requires_grad=False)
+        def var(a):
+            return torch.tensor(a, requires_grad=False)
 
-        def rvar(a): return var(a.repeat(1, beam_size, 1))
+        def rvar(a):
+            return var(a.repeat(1, beam_size, 1))
 
         def bottle(m):
             return m.view(batch_size * beam_size, -1)
@@ -568,9 +545,9 @@ class Translator(object):
         if src_lengths is None:
             assert not isinstance(memory_bank, tuple), \
                 'Ensemble decoding only supported for text data'
-            src_lengths = torch.Tensor(batch_size).type_as(memory_bank.data)\
-                                                  .long()\
-                                                  .fill_(memory_bank.size(0))
+            src_lengths = torch.Tensor(batch_size).type_as(memory_bank.data) \
+                .long() \
+                .fill_(memory_bank.size(0))
 
         # (2) Repeat src objects `beam_size` times.
         src_map = rvar(batch.src_map.data) \

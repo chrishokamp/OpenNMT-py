@@ -44,7 +44,7 @@ def _tally_parameters(model):
     return n_params, enc, dec
 
 
-def training_opt_postprocessing(opt):
+def training_opt_postprocessing(opt, device_id):
     if opt.word_vec_size != -1:
         opt.src_word_vec_size = opt.word_vec_size
         opt.tgt_word_vec_size = opt.word_vec_size
@@ -55,11 +55,12 @@ def training_opt_postprocessing(opt):
 
     opt.brnn = (opt.encoder_type == "brnn")
 
-    if opt.rnn_type == "SRU" and not opt.gpuid:
-        raise AssertionError("Using SRU requires -gpuid set.")
+    if opt.rnn_type == "SRU" and not opt.gpu_ranks:
+        raise AssertionError("Using SRU requires -gpu_ranks set.")
 
-    if torch.cuda.is_available() and not opt.gpuid:
-        logger.info("WARNING: You have a CUDA device, should run with -gpuid")
+    if torch.cuda.is_available() and not opt.gpu_ranks:
+        logger.info("WARNING: You have a CUDA device, \
+                    should run with -gpu_ranks")
 
     if opt.seed > 0:
         torch.manual_seed(opt.seed)
@@ -70,8 +71,8 @@ def training_opt_postprocessing(opt):
         # unless you tell it to be deterministic
         torch.backends.cudnn.deterministic = True
 
-    if opt.gpuid:
-        torch.cuda.set_device(opt.device_id)
+    if device_id >= 0:
+        torch.cuda.set_device(device_id)
         if opt.seed > 0:
             # These ensure same initialization in multi gpu mode
             torch.cuda.manual_seed(opt.seed)
@@ -89,8 +90,9 @@ def build_data_iter_fct(dataset_name, path_, fields_, opt_):
     return train_iter_wrapper
 
 
-def main(opt):
-    opt = training_opt_postprocessing(opt)
+def main(opt, device_id=None):
+
+    opt = training_opt_postprocessing(opt, device_id=device_id)
     init_logger(opt.log_file)
     # Load checkpoint if we resume from a previous training.
     if opt.train_from:

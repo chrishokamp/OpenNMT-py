@@ -15,6 +15,7 @@ import random
 
 from collections import OrderedDict
 
+import onmt
 import onmt.inputters as inputters
 import onmt.utils
 
@@ -26,6 +27,7 @@ from onmt.utils.logging import logger
 def build_trainer(opt, model, fields, optim, data_type,
                   generators,
                   tgt_vocabs,
+                  device_id=None,
                   model_saver=None):
     """
     Simplify `Trainer` creation based on user `opt`s*
@@ -64,8 +66,12 @@ def build_trainer(opt, model, fields, optim, data_type,
     shard_size = opt.max_generator_batches
     norm_method = opt.normalization
     grad_accum_count = opt.accum_count
-    n_gpu = len(opt.gpuid)
-    gpu_rank = opt.gpu_rank
+    n_gpu = opt.world_size
+    if device_id >= 0:
+        gpu_rank = opt.gpu_ranks[device_id]
+    else:
+        gpu_rank = 0
+        n_gpu = 0
     gpu_verbose_level = opt.gpu_verbose_level
     report_bleu=opt.report_bleu
 
@@ -194,7 +200,7 @@ class Trainer(object):
             if self.n_gpu == 0 or (step % self.n_gpu == self.gpu_rank):
                 if self.gpu_verbose_level > 1:
                     logger.info("GpuRank %d: index: %d accum: %d"
-                                % (self.gpu_rank, i, accum))
+                                % (self.gpu_rank, step, accum))
 
                 true_batchs.append(batch)
 
@@ -256,9 +262,10 @@ class Trainer(object):
 
                             if self.report_bleu:
                                 from onmt.translate.translator import build_translator
+
                                 import argparse
                                 parser = argparse.ArgumentParser(prog = 'translate.py', 
-                                                            description='train.py')
+                                                                 description='train.py')
                                 src_tmp = 'src.tmp'
                                 out_tmp = 'out.tmp'
                                 onmt.opts.translate_opts(parser)
@@ -290,6 +297,7 @@ class Trainer(object):
                         break
 
             if self.gpu_verbose_level > 0:
+
                 logger.info('GpuRank %d: we completed an epoch \
                             at step %d' % (self.gpu_rank, step))
             # train_iter = train_iter_fct()
