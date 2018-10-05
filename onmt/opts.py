@@ -415,10 +415,13 @@ def train_opts(parser):
 
    # neural_interlingua options
     group = parser.add_argument_group('Attention_bridge')
-    group.add_argument('-use_attention_bridge', type=bool, default=False,
-                       help="Use self-attention layer between enc and dec")
+    group.add_argument('-use_attention_bridge', action='store_true',
+                       help="""Use self-attention layer between enc and dec""")
     group.add_argument('-attention_heads', type=int, default=4,
-                      help="Number of attention heads in attention brige")
+                      help="""Number of attention heads in attention brige""")
+    group.add_argument('-report_bleu', action='store_true',
+                       help="""Report bleu score after validation,
+                       call tools/multi-bleu.perl on command line""")
 
 def translate_opts(parser):
     """ Translation / inference options """
@@ -531,8 +534,8 @@ def translate_opts(parser):
                        help='Window type for spectrogram generation')
    # neural_interlingua options
     group = parser.add_argument_group('Attention_bridge')
-    group.add_argument('-use_attention_bridge', type=bool, default=False,
-                       help="Use self-attention layer between enc and dec")
+    group.add_argument('-use_attention_bridge', action='store_true',
+                       help="""Use self-attention layer between enc and dec""")
 
 
 def translate_multimodel(parser):

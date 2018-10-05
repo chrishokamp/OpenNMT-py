@@ -674,15 +674,21 @@ class Translator(object):
         tgt_in = inputters.make_features(batch, 'tgt')[:-1]
 
         #  (1) run the encoder on the src
-        enc_states, memory_bank = self.model.encoder(src, src_lengths)
-        dec_states = \
-            self.model.decoder.init_decoder_state(src, memory_bank, enc_states)
+        # Raul: make it compatible with neural_interlingua
+        #enc_states, memory_bank = self.model.encoder(src, src_lengths)
+        enc_states, memory_bank = self.model.encoders[self.model.encoder_ids[self.src_lang]](src, src_lengths)
+        #dec_states = \
+        #    self.model.decoder.init_decoder_state(src, memory_bank, enc_states)
+        dec_states = self.model.decoders[self.model.decoder_ids[self.tgt_lang]].init_decoder_state(
+            src, memory_bank, enc_states)
 
         #  (2) if a target is specified, compute the 'goldScore'
         #  (i.e. log likelihood) of the target under the model
         tt = torch.cuda if self.cuda else torch
         gold_scores = tt.FloatTensor(batch.batch_size).fill_(0)
-        dec_out, _, _ = self.model.decoder(
+        #dec_out, _, _ = self.model.decoder(
+        #    tgt_in, memory_bank, dec_states, memory_lengths=src_lengths)
+        dec_out, _, _ = self.model.decoders[self.model.decoder_ids[self.tgt_lang]](
             tgt_in, memory_bank, dec_states, memory_lengths=src_lengths)
 
         tgt_pad = self.fields["tgt"].vocab.stoi[inputters.PAD_WORD]

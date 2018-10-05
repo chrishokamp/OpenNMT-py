@@ -67,13 +67,14 @@ def build_trainer(opt, model, fields, optim, data_type,
     n_gpu = len(opt.gpuid)
     gpu_rank = opt.gpu_rank
     gpu_verbose_level = opt.gpu_verbose_level
+    report_bleu=opt.report_bleu
 
     report_manager = onmt.utils.build_report_manager(opt)
     trainer = onmt.Trainer(model, train_losses, valid_losses, optim, trunc_size,
                            shard_size, data_type, norm_method,
                            grad_accum_count, n_gpu, gpu_rank,
-                           gpu_verbose_level, report_manager,
-                           model_saver=model_saver)
+                           gpu_verbose_level, report_manager, report_bleu,
+                           opt.use_attention_bridge, model_saver=model_saver)
     return trainer
 
 
@@ -105,7 +106,8 @@ class Trainer(object):
     def __init__(self, model, train_losses, valid_losses, optim,
                  trunc_size=0, shard_size=32, data_type='text',
                  norm_method="sents", grad_accum_count=1, n_gpu=1, gpu_rank=1,
-                 gpu_verbose_level=0, report_manager=None, model_saver=None):
+                 gpu_verbose_level=0, report_manager=None, report_bleu=None,
+                 use_attention_bridge=False, model_saver=None):
         # Basic attributes.
         self.model = model
         self.train_losses = train_losses
@@ -121,6 +123,9 @@ class Trainer(object):
         self.gpu_verbose_level = gpu_verbose_level
         self.report_manager = report_manager
         self.model_saver = model_saver
+        self.report_bleu = report_bleu
+        self.use_attention_bridge = use_attention_bridge
+        self.last_model  = None
 
         assert grad_accum_count > 0
         if grad_accum_count > 1:
@@ -224,6 +229,10 @@ class Trainer(object):
                     true_batchs = []
                     accum = 0
                     normalization = 0
+
+                    if self.gpu_rank == 0:
+                        self._maybe_save(step)
+
                     if (step % valid_steps == 0):
                         for lang_pair in valid_iter_fcts.items():
                             valid_iter_fct = lang_pair[1]
@@ -245,8 +254,37 @@ class Trainer(object):
                             self._report_step(self.optim.learning_rate,
                                               step, valid_stats=valid_stats)
 
-                    if self.gpu_rank == 0:
-                        self._maybe_save(step)
+                            if self.report_bleu:
+                                from onmt.translate.translator import build_translator
+                                import argparse
+                                parser = argparse.ArgumentParser(prog = 'translate.py', 
+                                                            description='train.py')
+                                src_tmp = 'src.tmp'
+                                out_tmp = 'out.tmp'
+                                onmt.opts.translate_opts(parser)
+                                dummy_opt = parser.parse_known_args(['-model', self.last_model,
+                                                            '-src', src_tmp,
+                                                            '-output', out_tmp ])[0]
+                                dummy_opt.use_attention_bridge = self.use_attention_bridge
+                                dummy_opt.src_lang, dummy_opt.tgt_lang = src_tgt
+
+                                translator = build_translator(dummy_opt, report_score=False)
+                                translator.translate(src_path=dummy_opt.src,
+                                                     tgt_path=dummy_opt.tgt,
+                                                     src_dir=None,
+                                                     batch_size=valid_iter.batch_size,
+                                                     attn_debug=False)
+                                #report BLEU
+                                import subprocess
+                                msg = translator._report_bleu('tgt.tmp')
+                                logger.info(msg)
+                                import os
+                                for file in ['src.tmp','tgt.tmp','out.tmp']:
+                                    os.remove(file)
+
+
+
+
                     step += 1
                     if step > train_steps:
                         break
@@ -269,7 +307,21 @@ class Trainer(object):
 
         stats = onmt.utils.Statistics()
 
+        first_iter=True
         for batch in valid_iter:
+            if first_iter and self.report_bleu:
+                import csv
+                exs_src = [sent.src for sent in batch.dataset.examples]
+                exs_tgt = [sent.tgt for sent in batch.dataset.examples]
+                # write tmp files
+                with open('src.tmp', "w") as output:
+                    writer = csv.writer(output, lineterminator='\n', delimiter=" ", quotechar='|')
+                    writer.writerows(exs_src)
+                with open('tgt.tmp', "w") as output:
+                    writer = csv.writer(output, lineterminator='\n', delimiter=" ", quotechar='|')
+                    writer.writerows(exs_tgt)
+
+            first_iter = False
             setattr(batch, 'src_lang', src_tgt[0])
             setattr(batch, 'tgt_lang', src_tgt[1])
             src = inputters.make_features(batch, 'src', self.data_type)
@@ -427,3 +479,4 @@ class Trainer(object):
         """
         if self.model_saver is not None:
             self.model_saver.maybe_save(step)
+            self.last_model = self.model_saver.base_path + '_step_' + str(step) +'.pt'

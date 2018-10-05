@@ -25,7 +25,7 @@ class MultiTaskModel(nn.Module):
         self.encoders = None
 
         self.use_attention_bridge = model_opt.use_attention_bridge
-        # Chris: these fields currently get initialized externally
+        # Chris: currently initialized externally
         self.attention_bridge = None
 
         self.decoder_ids = None

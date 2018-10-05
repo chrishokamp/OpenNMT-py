@@ -133,6 +133,8 @@ def load_test_multitask_model(opt, model_path=None):
     checkpoint = torch.load(model_path,
                             map_location=lambda storage, loc: storage)
     model = checkpoint['whole_model']
+    device = torch.device("cuda" if use_gpu(opt) else "cpu")
+    model.to(device)
     model.eval()
     return model
 
