@@ -455,6 +455,7 @@ def train_opts(parser):
                        help="""Using grayscale image can training
                        model faster and smaller""")
 
+
 def translate_opts(parser):
     """ Translation / inference options """
     group = parser.add_argument_group('Model')
