@@ -6,7 +6,7 @@ import torch.nn as nn
 
 import onmt.models.stacked_rnn
 from onmt.utils.misc import aeq
-from onmt.utils.rnn_factory import rnn_factory
+from onmt.utils.rnn_factory import *
 
 
 class RNNDecoderBase(nn.Module):

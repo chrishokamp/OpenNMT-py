@@ -10,7 +10,9 @@ import torch.nn.functional as F
 #from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
 #from onmt.encoders.encoder import EncoderBase
-#from onmt.utils.rnn_factory import rnn_factory
+#from onmt.utils.rnn_factory import *
+from onmt.decoders.decoder import RNNDecoderState
+#from onmt.decoders import decoder
 
 
 class AttentionBridge(nn.Module):
@@ -20,6 +22,7 @@ class AttentionBridge(nn.Module):
     def __init__(self,
                  hidden_size,
                  attention_heads,
+                 dec_num_layers,
                  bridge_type='matrix',
                  pooling=None,
                  dropout=0.05):
@@ -41,6 +44,15 @@ class AttentionBridge(nn.Module):
         self.tanh = nn.Tanh()
         self.softmax = nn.Softmax()
         self.attention_hops = r
+        self.hidden_size = hidden_size
+        self.M = None
+        self.dec_layers = dec_num_layers
+        '''Decoder initialization: '''
+        #u = self.hidden_dim
+        #r = attentionhops
+        #self.attention_hops = r
+        self.W_init = nn.Linear(u,dec_num_layers*u , bias=False)
+        self.tanh = nn.Tanh()
 
     # this currently misses the multi-head attention distribution
     #   regularization term from Lin et al
@@ -65,7 +77,9 @@ class AttentionBridge(nn.Module):
 
     # TODO: debug to match Lin et al -- softmax looks wrong
     def mix_attention(self, output):
-        """Notation based on Lin et al. (2017) A structured self-attentive sentence embedding"""
+        """
+        Notation based on Lin et al. (2017)
+        A structured self-attentive sentence embedding"""
         outp = torch.transpose(output, 0, 1).contiguous()
         size = outp.size()  # [bsz, len, nhid]
         compressed_embeddings = outp.view(-1, size[2])  # [bsz*len, nhid*2]
@@ -76,4 +90,22 @@ class AttentionBridge(nn.Module):
         alphas = self.softmax(alphas)  # [bsz*hop, len]
         alphas = alphas.view(size[0], self.attention_hops, size[1])  # [bsz, hop, len]
         return torch.bmm(alphas, outp), alphas
+
+    def init_decoder_state(self, src, memory_bank, encoder_final):
+        '''
+        initialize the decoder state, `s_0`.
+        We use a similar s_0 as in rSennrich et al.(2017) "Nematus":
+             - s_0 = tanh(W_init * h_avrg);
+                  where h_avrg is the average of the sentence embedding, M,
+                  (instead of taking the average over the hidden states of
+                   the RNN, as in rSennrich(2017) over the )
+        '''
+        s_0 = self.tanh(self.W_init(encoder_final))
+        ss = s_0[:,:,:self.hidden_size]
+        for i in range(self.dec_layers - 1):
+            init = (i+1) * self.hidden_size
+            end = (i+2) * self.hidden_size
+            ss = torch.cat([ss,s_0[:,:,init:end]])
+        s_0 = ss
+        return RNNDecoderState(self.hidden_size, s_0)
 
