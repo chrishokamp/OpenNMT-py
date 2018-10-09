@@ -179,6 +179,24 @@ def build_embeddings_then_encoder(model_opt, fields):
     return encoder
 
 
+def build_generator(model_opt, decoder, vocab):
+    # Build Generator.
+    if not model_opt.copy_attn:
+        if model_opt.generator_function == "sparsemax":
+            gen_func = onmt.modules.sparse_activations.LogSparsemax(dim=-1)
+        else:
+            gen_func = nn.LogSoftmax(dim=-1)
+        generator = nn.Sequential(
+            nn.Linear(model_opt.rnn_size, len(vocab)), gen_func
+        )
+        if model_opt.share_decoder_embeddings:
+            generator[0].weight = decoder.embeddings.word_lut.weight
+    else:
+        generator = CopyGenerator(model_opt.rnn_size, vocab)
+
+    return generator
+
+
 def build_decoder_and_generator(model_opt, fields):
 
     # Build decoder.
@@ -188,21 +206,7 @@ def build_decoder_and_generator(model_opt, fields):
                                       feature_dicts, for_encoder=False)
 
     decoder = build_decoder(model_opt, tgt_embeddings)
-
-    # Build Generator.
-    if not model_opt.copy_attn:
-        if model_opt.generator_function == "sparsemax":
-            gen_func = onmt.modules.sparse_activations.LogSparsemax(dim=-1)
-        else:
-            gen_func = nn.LogSoftmax(dim=-1)
-        generator = nn.Sequential(
-            nn.Linear(model_opt.rnn_size, len(fields["tgt"].vocab)), gen_func
-        )
-        if model_opt.share_decoder_embeddings:
-            generator[0].weight = decoder.embeddings.word_lut.weight
-    else:
-        generator = CopyGenerator(model_opt.rnn_size,
-                                  fields["tgt"].vocab)
+    generator = build_generator(model_opt, decoder, fields['tgt'].vocab)
 
     return decoder, generator
 
@@ -214,8 +218,9 @@ def build_attention_bridge(model_opt):
 
     # TODO: expand the options supported by the AttentionBrige
 
-    return AttentionBridge(model_opt.rnn_size,
-                           model_opt.attention_heads)
+    return AttentionBridge(hidden_size=model_opt.rnn_size,
+                           attention_heads=model_opt.attention_heads,
+                           dec_num_layers=model_opt.dec_layers)
 
 
 def build_base_model(model_opt, fields, gpu, checkpoint=None):
