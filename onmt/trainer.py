@@ -142,7 +142,6 @@ class Trainer(object):
         # Set model in training mode.
         self.model.train()
 
-    # def train(self, train_iter_fct, valid_iter_fct, train_steps, valid_steps):
     def train(self, train_iter_fcts, valid_iter_fcts, train_steps, valid_steps):
         """
         The main training loops.

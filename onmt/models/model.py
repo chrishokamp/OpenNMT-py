@@ -16,28 +16,46 @@ class MultiTaskModel(nn.Module):
       multi<gpu (bool): setup for multigpu support
     """
 
-    def __init__(self, encoder, decoder, model_opt, multigpu=False):
+    def __init__(self,
+                 encoder_map,
+                 decoder_map,
+                 generator_map,
+                 init_decoder='rnn_final_state',
+                 bridge=None,
+                 multigpu=False):
+
         self.multigpu = multigpu
         super(MultiTaskModel, self).__init__()
 
-        # Chris: these fields currently get initialized externally
-        self.encoder_ids = None
-        self.encoders = None
+        # we need to transform the maps into id maps and module lists so that
+        # the components correctly get registered as pytorch modules
+        self.encoder_ids = {lang_code: idx
+                            for lang_code, idx
+                            in zip(encoder_map.keys(),
+                                   range(len(encoder_map)))}
+        self.encoders = nn.ModuleList(encoder_map.values())
 
-        # Chris: currently initialized externally
-        self.attention_bridge = None
+        self.decoder_ids = {lang_code: idx
+                            for lang_code, idx
+                            in zip(decoder_map.keys(),
+                                   range(len(decoder_map)))}
+        self.decoders = nn.ModuleList(decoder_map.values())
 
-        self.init_decoder = model_opt.init_decoder
-        if self.use_attention_bridge:
-            self.attention_bridge = AttentionBridge(model_opt.rnn_size, 
-                                                    model_opt.attention_heads, 
-                                                    model_opt.dec_layers)
+        self.generator_ids = {lang_code: idx
+                              for lang_code, idx
+                              in zip(decoder_map.keys(),
+                                     range(len(decoder_map)))}
+        self.generators = nn.ModuleList(generator_map.values())
 
-        self.decoder_ids = None
-        self.decoders = None
+        assert (len(self.decoders) == len(self.generators),
+                'Generators are linked to decoders.')
 
-        # generator ids is linked with decoder_ids
-        self.generators = None
+        self.bridge = None
+        if bridge is not None:
+            self.bridge = bridge
+
+        assert init_decoder in ['rnn_final_state', 'attention_matrix']
+        self.init_decoder = init_decoder
 
     def forward(self, src, tgt, src_task, tgt_task, lengths, dec_state=None):
         """Forward propagate a `src` and `tgt` pair for training.
@@ -68,32 +86,39 @@ class MultiTaskModel(nn.Module):
         enc_final, memory_bank = encoder(src, lengths)
 
         # Implement attention bridge/compound attention
-        if self.use_attention_bridge:
-            enc_final, memory_bank = self.attention_bridge(memory_bank)
+        if self.bridge is not None:
+            enc_final, memory_bank = self.bridge(memory_bank)
         
         # initialize decoder
+        # Note: this assert should probably be in initialization
         if str(type(encoder)).find('transformer.TransformerEncoder') > -1:
             assert (self.init_decoder == "attention_matrix") , \
-               ("""Unsupported decoder initialization '%s'. Use 
+               ("""Unsupported decoder initialization {}. Use 
                 the 'attention matrix' option for the '-init_decoder'
-                flag when using a transformer encoder""" % (self.init_decoder))
-        if (self.init_decoder == 'attention_matrix'):
+                flag when using a transformer encoder""".format(
+                   self.init_decoder))
+
+        if self.init_decoder == 'attention_matrix':
             enc_state = \
-                self.attention_bridge.init_decoder_state(src, memory_bank, enc_final)
+                self.attention_bridge.init_decoder_state(src,
+                                                         memory_bank,
+                                                         enc_final)
         else:
-            enc_state = \
-                decoder.init_decoder_state(src, memory_bank, enc_final)
+            enc_state = decoder.init_decoder_state(
+                src,
+                memory_bank,
+                enc_final)
 
         decoder_outputs, dec_state, attns = \
             decoder(tgt, memory_bank,
-                    enc_state if dec_state is None
-                    else dec_state,
+                    enc_state if dec_state is None else dec_state,
                     memory_lengths=lengths)
 
         if self.multigpu:
             # Not yet supported on multi-gpu
             dec_state = None
             attns = None
+
         return decoder_outputs, attns, dec_state
 
 
