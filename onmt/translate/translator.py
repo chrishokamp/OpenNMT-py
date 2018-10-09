@@ -535,12 +535,17 @@ class Translator(object):
 
         # enc_states, memory_bank = self.model.encoder(src, src_lengths)
         enc_states, memory_bank = self.model.encoders[self.model.encoder_ids[self.src_lang]](src, src_lengths)
-        dec_states = self.model.decoders[self.model.decoder_ids[self.tgt_lang]].init_decoder_state(
-            src, memory_bank, enc_states)
-
-        # Implement attention bridge/compound attention
+        
+        # run through attention bridge/compound attention
         if self.use_attention_bridge:
             enc_states, memory_bank = self.model.attention_bridge(memory_bank)
+        
+        # Raul: implement init_decoder_states for when -init_decoder flag is 'attention_matrix' while training
+        dec_states = self.model.decoders[self.model.decoder_ids[self.tgt_lang]].init_decoder_state(
+            src, memory_bank, enc_states)
+        #dec_states = self.model.attention_bridge.init_decoder_state(src, memory_bank, enc_states)
+
+
 
         if src_lengths is None:
             assert not isinstance(memory_bank, tuple), \

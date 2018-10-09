@@ -70,11 +70,14 @@ class MultiTaskModel(nn.Module):
         # Implement attention bridge/compound attention
         if self.use_attention_bridge:
             enc_final, memory_bank = self.attention_bridge(memory_bank)
-
+        
         # initialize decoder
-        assert self.init_decoder in ["attention_matrix", "rnn_final_state"], \
-        ("Unsupported decoder initialization %s" % (self.init_decoder))
-        if self.init_decoder == 'attention_matrix':
+        if str(type(encoder)).find('transformer.TransformerEncoder') > -1:
+            assert (self.init_decoder == "attention_matrix") , \
+               ("""Unsupported decoder initialization '%s'. Use 
+                the 'attention matrix' option for the '-init_decoder'
+                flag when using a transformer encoder""" % (self.init_decoder))
+        if (self.init_decoder == 'attention_matrix'):
             enc_state = \
                 self.attention_bridge.init_decoder_state(src, memory_bank, enc_final)
         else:
