@@ -219,7 +219,7 @@ def build_attention_bridge(model_opt):
     # TODO: expand the options supported by the AttentionBrige
 
     return AttentionBridge(hidden_size=model_opt.rnn_size,
-                           attention_heads=model_opt.attention_heads,
+                           num_attention_heads=model_opt.attention_heads,
                            dec_num_layers=model_opt.dec_layers)
 
 

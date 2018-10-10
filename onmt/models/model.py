@@ -57,7 +57,7 @@ class MultiTaskModel(nn.Module):
         assert init_decoder in ['rnn_final_state', 'attention_matrix']
         self.init_decoder = init_decoder
 
-    def forward(self, src, tgt, src_task, tgt_task, lengths, dec_state=None):
+    def forward(self, src, tgt, src_task, tgt_task, dec_state=None):
         """Forward propagate a `src` and `tgt` pair for training.
         Possible initialized with a beginning decoder state.
 
@@ -78,12 +78,15 @@ class MultiTaskModel(nn.Module):
                  * dictionary attention dists of `[tgt_len x batch x src_len]`
                  * final decoder state
         """
+        src, src_lengths = src
+        tgt, _ = tgt
+
         tgt = tgt[:-1]  # exclude last target from inputs
 
         encoder = self.encoders[self.encoder_ids[src_task]]
         decoder = self.decoders[self.decoder_ids[tgt_task]]
 
-        enc_final, memory_bank = encoder(src, lengths)
+        enc_final, memory_bank = encoder(src, src_lengths)
 
         # Implement attention bridge/compound attention
         if self.bridge is not None:
@@ -98,11 +101,11 @@ class MultiTaskModel(nn.Module):
                 flag when using a transformer encoder""".format(
                    self.init_decoder))
 
-        if self.init_decoder == 'attention_matrix':
+        if self.init_decoder == 'attention_matrix' and self.bridge is not None:
             enc_state = \
-                self.attention_bridge.init_decoder_state(src,
-                                                         memory_bank,
-                                                         enc_final)
+                self.bridge.init_decoder_state(src,
+                                               memory_bank,
+                                               enc_final)
         else:
             enc_state = decoder.init_decoder_state(
                 src,
@@ -112,7 +115,7 @@ class MultiTaskModel(nn.Module):
         decoder_outputs, dec_state, attns = \
             decoder(tgt, memory_bank,
                     enc_state if dec_state is None else dec_state,
-                    memory_lengths=lengths)
+                    memory_lengths=src_lengths)
 
         if self.multigpu:
             # Not yet supported on multi-gpu

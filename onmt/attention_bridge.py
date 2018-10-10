@@ -21,7 +21,7 @@ class AttentionBridge(nn.Module):
     """
     def __init__(self,
                  hidden_size,
-                 attention_heads,
+                 num_attention_heads,
                  dec_num_layers,
                  bridge_type='matrix',
                  pooling=None,
@@ -37,7 +37,7 @@ class AttentionBridge(nn.Module):
 
         u = hidden_size
         d = hidden_size
-        r = attention_heads
+        r = num_attention_heads
         self.drop = nn.Dropout(dropout)
         self.ws1 = nn.Linear(d, u, bias=False)
         self.ws2 = nn.Linear(d, r, bias=False)
@@ -45,12 +45,9 @@ class AttentionBridge(nn.Module):
         self.softmax = nn.Softmax()
         self.attention_hops = r
         self.hidden_size = hidden_size
-        self.M = None
         self.dec_layers = dec_num_layers
-        '''Decoder initialization: '''
-        #u = self.hidden_dim
-        #r = attentionhops
-        #self.attention_hops = r
+        self.num_attention_heads = num_attention_heads
+
         self.W_init = nn.Linear(u,dec_num_layers*u , bias=False)
         self.tanh = nn.Tanh()
 
@@ -58,7 +55,7 @@ class AttentionBridge(nn.Module):
     #   regularization term from Lin et al
     def forward(self, enc_output):
         # TODO: implement different bridge types
-        output, alphas = self.mixAtt(enc_output)
+        output, alphas = self.mix_attention(enc_output)
         # take transpose to match dimensions s.t. r=new_seq_len
         M = torch.transpose(output, 0, 1).contiguous() #[r,bsz,nhid]
 
@@ -67,13 +64,17 @@ class AttentionBridge(nn.Module):
 
         return h_avrg, M
 
-    def pool(self, states, op='avg'):
+    def pool(self, states, op='mean'):
         """
-        Pools the states into a single vector
+        Pools the states along the time dimension into a single vector
         """
 
-        return states.mean(dim=0, keepdim=True)
-
+        # Chris: this may result in a decoder initialization bug -- should not
+        # Chris: change the first dim of the encoder states
+        if op == 'mean':
+            return states.mean(dim=0, keepdim=True)
+        else:
+            raise ValueError('unknown pooling op: {}'.format(op))
 
     # TODO: debug to match Lin et al -- softmax looks wrong
     def mix_attention(self, output):
