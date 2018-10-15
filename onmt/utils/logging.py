@@ -4,6 +4,7 @@ from __future__ import absolute_import
 import logging
 
 logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 
 def init_logger(log_file=None):
