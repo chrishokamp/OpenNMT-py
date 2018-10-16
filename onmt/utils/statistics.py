@@ -109,18 +109,31 @@ class Statistics(object):
            start (int): start time of step.
         """
         t = self.elapsed_time()
-        logger.info(
-            ("Step %2d/%5d; acc: %6.2f; ppl: %5.2f; xent: %4.2f; " +
-             "lr: %7.5f; %3.0f/%3.0f tok/s; %6.0f sec")
-            % (step, num_steps,
-               self.accuracy(),
-               self.ppl(),
-               self.xent(),
-               learning_rate,
-               self.n_src_words / (t + 1e-5),
-               self.n_words / (t + 1e-5),
-               time.time() - start))
+        report = {
+            'step': step,
+            'num_steps': num_steps,
+            'acc': self.accuracy(),
+            'ppl': self.ppl(),
+            'xent': self.xent(),
+            'lr': learning_rate,
+            'src_words': self.n_src_words / (t + 1e-5),
+            'n_words': self.n_words / (t + 1e-5),
+            'elapsed_time': time.time() - start
+        }
+
+        report_string = \
+        (("Step %2d/%5d; acc: %6.2f; ppl: %5.2f; xent: %4.2f; " 
+          "lr: %7.5f; %3.0f/%3.0f tok/s; %6.0f sec")
+         % (report['step'], report['num_steps'],
+            report['acc'], report['ppl'],
+            report['xent'], report['lr'],
+            report['src_words'], report['n_words'],
+            report['elapsed_time']))
+
+        logger.info(report_string)
         sys.stdout.flush()
+
+        return report
 
     def log_tensorboard(self, prefix, writer, learning_rate, step):
         """ display statistics to tensorboard """

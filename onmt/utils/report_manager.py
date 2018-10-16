@@ -106,6 +106,9 @@ class ReportMgr(ReportMgrBase):
                 The TensorBoard Summary writer to use or None
         """
         super(ReportMgr, self).__init__(report_every, start_time)
+
+        # Note (very slow) memory leak
+        self.training_reports = []
         self.tensorboard_writer = tensorboard_writer
 
     def maybe_log_tensorboard(self, stats, prefix, learning_rate, step):
@@ -118,8 +121,9 @@ class ReportMgr(ReportMgrBase):
         """
         See base class method `ReportMgrBase.report_training`.
         """
-        report_stats.output(step, num_steps,
-                            learning_rate, self.start_time)
+        report = report_stats.output(step, num_steps,
+                                     learning_rate, self.start_time)
+        self.training_reports.append(report)
 
         # Log the progress using the number of batches on the x-axis.
         self.maybe_log_tensorboard(report_stats,
