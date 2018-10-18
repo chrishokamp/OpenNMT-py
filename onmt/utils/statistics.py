@@ -100,6 +100,14 @@ class Statistics(object):
         """ compute elapsed time """
         return time.time() - self.start_time
 
+    def stats(self):
+        report = {
+            'acc': self.accuracy(),
+            'ppl': self.ppl(),
+            'xent': self.xent(),
+        }
+        return report
+
     def output(self, step, num_steps, learning_rate, start):
         """Write out statistics to stdout.
 
@@ -109,17 +117,14 @@ class Statistics(object):
            start (int): start time of step.
         """
         t = self.elapsed_time()
-        report = {
+        report = dict({
             'step': step,
             'num_steps': num_steps,
-            'acc': self.accuracy(),
-            'ppl': self.ppl(),
-            'xent': self.xent(),
             'lr': learning_rate,
             'src_words': self.n_src_words / (t + 1e-5),
             'n_words': self.n_words / (t + 1e-5),
             'elapsed_time': time.time() - start
-        }
+        }, **self.stats())
 
         report_string = \
         (("Step %2d/%5d; acc: %6.2f; ppl: %5.2f; xent: %4.2f; " 
