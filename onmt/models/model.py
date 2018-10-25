@@ -21,10 +21,8 @@ class MultiTaskModel(nn.Module):
                  decoder_map,
                  generator_map,
                  init_decoder='rnn_final_state',
-                 bridge=None,
-                 multigpu=False):
+                 bridge=None):
 
-        self.multigpu = multigpu
         super(MultiTaskModel, self).__init__()
 
         # we need to transform the maps into id maps and module lists so that
@@ -117,11 +115,6 @@ class MultiTaskModel(nn.Module):
                     enc_state if dec_state is None else dec_state,
                     memory_lengths=src_lengths)
 
-        if self.multigpu:
-            # Not yet supported on multi-gpu
-            dec_state = None
-            attns = None
-
         return decoder_outputs, attns, dec_state
 
 
@@ -136,13 +129,12 @@ class NMTModel(nn.Module):
       multi<gpu (bool): setup for multigpu support
     """
 
-    def __init__(self, encoder, decoder, model_opt, multigpu=False):
-        self.multigpu = multigpu
+    def __init__(self, encoder, decoder, model_opt):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.use_attention_bridge = model_opt.use_attention_bridge
         self.attention_bridge = AttentionBridge(model_opt.rnn_size, 
-                                                    model_opt.attention_heads, 
+                                                    model_opt.attention_heads,
                                                     model_opt.dec_layers) #, model_opt.dropout)
         self.decoder = decoder
 
@@ -181,8 +173,5 @@ class NMTModel(nn.Module):
                          enc_state if dec_state is None
                          else dec_state,
                          memory_lengths=lengths)
-        if self.multigpu:
-            # Not yet supported on multi-gpu
-            dec_state = None
-            attns = None
+
         return decoder_outputs, attns, dec_state
