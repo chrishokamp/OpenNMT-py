@@ -164,7 +164,9 @@ class LossComputeBase(nn.Module):
         """
         batch_stats = onmt.utils.Statistics()
         range_ = (cur_trunc, cur_trunc + trunc_size)
+
         shard_state = self._make_shard_state(batch, output, range_, attns)
+
         for shard in shards(shard_state, shard_size):
             loss, stats = self._compute_loss(batch, **shard)
             loss.div(float(normalization)).backward()
@@ -189,6 +191,7 @@ class LossComputeBase(nn.Module):
                           .sum() \
                           .item()
         num_non_padding = non_padding.sum().item()
+
         return onmt.utils.Statistics(loss.item(), num_non_padding, num_correct)
 
     def _bottle(self, _v):

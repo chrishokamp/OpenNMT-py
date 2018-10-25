@@ -2,6 +2,7 @@
 from __future__ import print_function
 import time
 from datetime import datetime
+from collections import defaultdict
 
 import onmt
 
@@ -78,7 +79,8 @@ class ReportMgrBase(object):
         """ To be overridden """
         raise NotImplementedError()
 
-    def report_step(self, lr, step, train_stats=None, valid_stats=None):
+    def report_step(self, lr, step, train_stats=None, valid_stats=None,
+                    dataset_name='default_dataset'):
         """
         Report stats of a step
 
@@ -88,7 +90,10 @@ class ReportMgrBase(object):
             lr(float): current learning rate
         """
         self._report_step(
-            lr, step, train_stats=train_stats, valid_stats=valid_stats)
+            lr, step,
+            train_stats=train_stats,
+            valid_stats=valid_stats,
+            dataset_name=dataset_name)
 
     def _report_step(self, *args, **kwargs):
         raise NotImplementedError()
@@ -109,6 +114,7 @@ class ReportMgr(ReportMgrBase):
 
         # Note (very slow) memory leak
         self.training_reports = []
+        self.valid_stats = defaultdict(list)
         self.tensorboard_writer = tensorboard_writer
 
     def maybe_log_tensorboard(self, stats, prefix, learning_rate, step):
@@ -134,7 +140,8 @@ class ReportMgr(ReportMgrBase):
 
         return report_stats
 
-    def _report_step(self, lr, step, train_stats=None, valid_stats=None):
+    def _report_step(self, lr, step, train_stats=None, valid_stats=None,
+                     dataset_name='default_dataset'):
         """
         See base class method `ReportMgrBase.report_step`.
         """
@@ -150,6 +157,11 @@ class ReportMgr(ReportMgrBase):
         if valid_stats is not None:
             self.log('Validation perplexity: %g' % valid_stats.ppl())
             self.log('Validation accuracy: %g' % valid_stats.accuracy())
+            self.valid_stats[dataset_name].append(
+                dict({'step': step,
+                      'ppl': valid_stats.ppl(),
+                      'acc': valid_stats.accuracy(),
+                      'xent': valid_stats.xent()}))
 
             self.maybe_log_tensorboard(valid_stats,
                                        "valid",

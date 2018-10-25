@@ -470,7 +470,7 @@ class Trainer(object):
                 multigpu=self.n_gpu > 1)
 
     def _report_step(self, learning_rate, step, train_stats=None,
-                     valid_stats=None):
+                     valid_stats=None, dataset_name='default_dataset'):
         """
         Simple function to report stats (if report_manager is set)
         see `onmt.utils.ReportManagerBase.report_step` for doc
@@ -478,7 +478,7 @@ class Trainer(object):
         if self.report_manager is not None:
             return self.report_manager.report_step(
                 learning_rate, step, train_stats=train_stats,
-                valid_stats=valid_stats)
+                valid_stats=valid_stats, dataset_name=dataset_name)
 
     def _maybe_save(self, step):
         """
