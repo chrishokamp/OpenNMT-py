@@ -70,8 +70,22 @@ def model_opts(parser):
                        help='Number of layers in the encoder')
     group.add_argument('-dec_layers', type=int, default=2,
                        help='Number of layers in the decoder')
-    group.add_argument('-rnn_size', type=int, default=500,
-                       help='Size of rnn hidden states')
+    group.add_argument('-rnn_size', type=int, default=-1,
+                       help="""Size of rnn hidden states. Overwrites
+                       enc_rnn_size and dec_rnn_size""")
+    group.add_argument('-enc_rnn_size', type=int, default=500,
+                       help="""Size of encoder rnn hidden states.
+                       Must be equal to dec_rnn_size except for
+                       speech-to-text.""")
+    group.add_argument('-dec_rnn_size', type=int, default=500,
+                       help="""Size of decoder rnn hidden states.
+                       Must be equal to enc_rnn_size except for
+                       speech-to-text.""")
+    group.add_argument('-audio_enc_pooling', type=str, default='1',
+                       help="""The amount of pooling of audio encoder,
+                       either the same amount of pooling across all layers
+                       indicated by a single number, or different amounts of
+                       pooling per layer separated by comma.""")
     group.add_argument('-cnn_kernel_width', type=int, default=3,
                        help="""Size of windows in the cnn, the kernel_size is
                        (cnn_kernel_width, 1) in conv layer""")
@@ -158,15 +172,9 @@ def preprocess_opts(parser):
                        help="Output file for the prepared data")
 
     group.add_argument('-max_shard_size', type=int, default=0,
-                       help="""For text corpus of large volume, it will
-                       be divided into shards of this size to preprocess.
-                       If 0, the data will be handled as a whole. The unit
-                       is in bytes. Optimal value should be multiples of
-                       64 bytes. A commonly used sharding value is 131072000.
-                       It is recommended to ensure the corpus is shuffled
-                       before sharding.""")
+                       help="""Deprecated use shard_size instead""")
 
-    group.add_argument('-shard_size', type=int, default=0,
+    group.add_argument('-shard_size', type=int, default=1000000,
                        help="""Divide src_corpus and tgt_corpus into
                        smaller multiple src_copus and tgt corpus files, then
                        build shards, each shard will have
@@ -213,7 +221,7 @@ def preprocess_opts(parser):
 
     # Data processing options
     group = parser.add_argument_group('Random')
-    group.add_argument('-shuffle', type=int, default=1,
+    group.add_argument('-shuffle', type=int, default=0,
                        help="Shuffle data")
     group.add_argument('-seed', type=int, default=3435,
                        help="Random seed")
@@ -296,6 +304,9 @@ def train_opts(parser):
     group.add_argument('-train_from', default='', type=str,
                        help="""If training from a checkpoint then this is the
                        path to the pretrained model's state_dict.""")
+    group.add_argument('-reset_optim', default='none',
+                       choices=['none', 'all', 'states', 'keep_states'],
+                       help="""Optimization resetter when train_from.""")
 
     # Pretrained word vectors
     group.add_argument('-pre_word_vecs_enc',

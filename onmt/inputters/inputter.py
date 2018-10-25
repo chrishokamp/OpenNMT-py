@@ -4,6 +4,7 @@
 """
 import glob
 import os
+
 from collections import Counter, defaultdict, OrderedDict
 from itertools import count
 
@@ -257,13 +258,7 @@ def build_dataset(fields, data_type, src_data_iter=None, src_path=None,
 
     elif data_type == 'audio':
         dataset = AudioDataset(fields, src_examples_iter, tgt_examples_iter,
-                               num_src_feats, num_tgt_feats,
                                tgt_seq_length=tgt_seq_length,
-                               sample_rate=sample_rate,
-                               window_size=window_size,
-                               window_stride=window_stride,
-                               window=window,
-                               normalize_audio=normalize_audio,
                                use_filter_pred=use_filter_pred)
 
     return dataset
@@ -301,7 +296,7 @@ def build_vocab(train_dataset_files, fields, data_type, share_vocab,
     counter = {}
 
     # Prop src from field to get lower memory using when training with image
-    if data_type == 'img':
+    if data_type == 'img' or data_type == 'audio':
         fields.pop("src")
 
     for k in fields:
