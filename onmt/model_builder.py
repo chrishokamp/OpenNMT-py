@@ -187,13 +187,14 @@ def build_generator(model_opt, decoder, vocab):
             gen_func = onmt.modules.sparse_activations.LogSparsemax(dim=-1)
         else:
             gen_func = nn.LogSoftmax(dim=-1)
+
         generator = nn.Sequential(
-            nn.Linear(model_opt.rnn_size, len(vocab)), gen_func
+            nn.Linear(model_opt.dec_rnn_size, len(vocab)), gen_func
         )
         if model_opt.share_decoder_embeddings:
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
-        generator = CopyGenerator(model_opt.rnn_size, vocab)
+        generator = CopyGenerator(model_opt.dec_rnn_size, vocab)
 
     return generator
 
@@ -219,7 +220,7 @@ def build_attention_bridge(model_opt):
 
     # TODO: expand the options supported by the AttentionBrige
 
-    return AttentionBridge(hidden_size=model_opt.rnn_size,
+    return AttentionBridge(hidden_size=model_opt.enc_rnn_size,
                            num_attention_heads=model_opt.attention_heads,
                            dec_num_layers=model_opt.dec_layers)
 
