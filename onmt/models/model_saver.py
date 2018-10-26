@@ -1,4 +1,5 @@
 import os
+import dill
 import torch
 import torch.nn as nn
 
@@ -83,43 +84,50 @@ class ModelSaverBase(object):
         raise NotImplementedError()
 
 
-# WORKING: update this class to support multi-enc, multi-dec
 class ModelSaver(ModelSaverBase):
     """
         Simple model saver to filesystem
+        See:
+        https://pytorch.org/docs/stable/notes/serialization.html#recommend-saving-models
+        https://pytorch.org/tutorials/beginner/saving_loading_models.html
+
     """
 
-    def __init__(self, base_path, model, model_opt, fields, optim,
-                 save_checkpoint_steps, keep_checkpoint=0):
+    def __init__(self, base_path, model, fields, save_checkpoint_steps,
+                 model_opt=None, optim=None, keep_checkpoint=0):
         super(ModelSaver, self).__init__(
             base_path, model, model_opt, fields, optim,
             save_checkpoint_steps, keep_checkpoint)
 
-    def _save(self, step):
+    def create_checkpoint(self):
         real_model = (self.model.module
                       if isinstance(self.model, nn.DataParallel)
                       else self.model)
-        real_generator = (real_model.generator.module
-                          if isinstance(real_model.generator, nn.DataParallel)
-                          else real_model.generator)
 
-        model_state_dict = real_model.state_dict()
+        #real_generators = (real_model.generators.module
+        #                   if isinstance(real_model.generator, nn.DataParallel)
+        #                   else real_model.generators)
+
         #model_state_dict = {k: v for k, v in model_state_dict.items()
         #                    if 'generator' not in k}
         #generator_state_dict = real_generator.state_dict()
+
+        model_state_dict = real_model.state_dict()
         checkpoint = {
-            'model': model_state_dict,
-            #'generator': generator_state_dict,
-            'vocab': onmt.inputters.save_fields_to_vocab(self.fields),
-            # WORKING: updating serialization for multi enc-dec
-            'opt': self.model_opt,
+            'field_vocabs': self.fields,
+            'model_opt': self.model_opt,
             'optim': self.optim,
-            'whole_model': self.model
+            'model_state_dict': model_state_dict
         }
 
+        return checkpoint
+
+    def _save(self, step):
         logger.info("Saving checkpoint %s_step_%d.pt" % (self.base_path, step))
         checkpoint_path = '%s_step_%d.pt' % (self.base_path, step)
-        torch.save(checkpoint, checkpoint_path)
+        checkpoint = self.create_checkpoint()
+
+        torch.save(checkpoint, checkpoint_path, pickle_module=dill)
         return checkpoint, checkpoint_path
 
     def _rm_checkpoint(self, name):
