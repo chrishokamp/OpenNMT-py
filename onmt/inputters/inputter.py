@@ -382,13 +382,18 @@ def load_vocabulary(vocabulary_path, tag=""):
         if not os.path.exists(vocabulary_path):
             raise RuntimeError(
                 "{} vocabulary not found at {}!".format(tag, vocabulary_path))
-        else:
-            with codecs.open(vocabulary_path, 'r', 'utf-8') as f:
-                for line in f:
-                    if len(line.strip()) == 0:
-                        continue
-                    word = line.strip().split()[0]
-                    vocabulary.append(word)
+
+        logger.info("Loading {} vocabulary from {}".format(tag,
+                                                           vocabulary_path))
+        vocabulary = OrderedDict()
+        with open(vocabulary_path) as f:
+            idx = 0
+            for line in f:
+                if len(line.strip()) == 0:
+                    continue
+                word = line.strip().split()[0]
+                vocabulary[word] = idx
+                idx += 1
 
     return vocabulary
 
