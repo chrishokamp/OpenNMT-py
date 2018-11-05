@@ -580,6 +580,11 @@ def translate_opts(parser):
     group = parser.add_argument_group('Attention_bridge')
     group.add_argument('-use_attention_bridge', action='store_true',
                        help="""Use self-attention layer between enc and dec""")
+    # Option most relevant to image input
+    group.add_argument('-image_channel_size', type=int, default=3,
+                       choices=[3, 1],
+                       help="""Using grayscale image can training
+                       model faster and smaller""")
 
 
 def translate_multimodel(parser):
@@ -589,12 +594,6 @@ def translate_multimodel(parser):
                        help="The 2-character source language code")
     group.add_argument('-tgt_lang', required=True,
                        help="The 2-character target language code")
-
-    # Option most relevant to image input
-    group.add_argument('-image_channel_size', type=int, default=3,
-                       choices=[3, 1],
-                       help="""Using grayscale image can training
-                       model faster and smaller""")
 
 
 def add_md_help_argument(parser):

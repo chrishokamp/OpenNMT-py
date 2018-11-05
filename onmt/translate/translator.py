@@ -570,12 +570,12 @@ class Translator(object):
             enc_states, memory_bank = self.model.attention_bridge(memory_bank)
         
         # Raul: implement init_decoder_states for when -init_decoder flag is 'attention_matrix' while training
-        dec_states = self.model.decoders[self.model.decoder_ids[self.tgt_lang]].init_decoder_state(
+        #dec_states = self.model.decoders[self.model.decoder_ids[self.tgt_lang]].init_decoder_state(
 
-        #src, enc_states, memory_bank, src_lengths = self._run_encoder(
-        #    batch, data_type)
-        #dec_states = self.model.decoder.init_decoder_state(
-        #    src, memory_bank, enc_states)
+        src, enc_states, memory_bank, src_lengths = self._run_encoder(
+            batch, data_type)
+        dec_states = self.model.decoder.init_decoder_state(
+            src, memory_bank, enc_states)
 
         # (2) Repeat src objects `beam_size` times.
         src_map = rvar(batch.src_map.data) \

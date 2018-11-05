@@ -89,15 +89,27 @@ class MultiTaskModel(nn.Module):
         # Implement attention bridge/compound attention
         if self.bridge is not None:
             enc_final, memory_bank = self.bridge(memory_bank)
-        
+
+        enc_state = self.init_decoder_state(encoder, decoder,
+                                            src, memory_bank, enc_final)
+
+        decoder_outputs, dec_state, attns = \
+            decoder(tgt, memory_bank,
+                    enc_state if dec_state is None else dec_state,
+                    memory_lengths=src_lengths)
+
+        return decoder_outputs, attns, dec_state
+
+    def init_decoder_state(self, encoder, decoder,
+                           src, memory_bank, enc_final):
         # initialize decoder
         # Note: this assert should probably be in initialization
         if str(type(encoder)).find('transformer.TransformerEncoder') > -1:
             assert (self.init_decoder == "attention_matrix") , \
-               ("""Unsupported decoder initialization {}. Use 
+                ("""Unsupported decoder initialization {}. Use 
                 the 'attention matrix' option for the '-init_decoder'
                 flag when using a transformer encoder""".format(
-                   self.init_decoder))
+                    self.init_decoder))
 
         if self.init_decoder == 'attention_matrix' and self.bridge is not None:
             enc_state = \
@@ -110,12 +122,7 @@ class MultiTaskModel(nn.Module):
                 memory_bank,
                 enc_final)
 
-        decoder_outputs, dec_state, attns = \
-            decoder(tgt, memory_bank,
-                    enc_state if dec_state is None else dec_state,
-                    memory_lengths=src_lengths)
-
-        return decoder_outputs, attns, dec_state
+        return  enc_state
 
 
 class NMTModel(nn.Module):
