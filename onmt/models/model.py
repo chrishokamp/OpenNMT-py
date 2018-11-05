@@ -2,7 +2,7 @@
 
 import torch.nn as nn
 
-from onmt.attention_bridge import AttentionBridge
+from onmt.modules.attention_bridge import AttentionBridge
 
 
 class MultiTaskModel(nn.Module):
@@ -55,7 +55,7 @@ class MultiTaskModel(nn.Module):
         assert init_decoder in ['rnn_final_state', 'attention_matrix']
         self.init_decoder = init_decoder
 
-    def forward(self, src, tgt, src_task, tgt_task, dec_state=None):
+    def forward(self, src, tgt, src_task, tgt_task):
         """Forward propagate a `src` and `tgt` pair for training.
         Possible initialized with a beginning decoder state.
 
@@ -91,39 +91,36 @@ class MultiTaskModel(nn.Module):
             enc_final, memory_bank = self.bridge(memory_bank)
 
         # TODO: this doesn't work with new decoder interface
-        enc_state = self.init_decoder_state(encoder, decoder,
-                                            src, memory_bank, enc_final)
+        self.init_decoder_state(encoder, decoder,
+                                src, memory_bank, enc_final)
 
-        decoder_outputs, dec_state, attns = \
+        decoder_outputs, attns = \
             decoder(tgt, memory_bank,
-                    enc_state if dec_state is None else dec_state,
                     memory_lengths=src_lengths)
 
-        return decoder_outputs, attns, dec_state
+        return decoder_outputs, attns
 
     def init_decoder_state(self, encoder, decoder,
                            src, memory_bank, enc_final):
         # initialize decoder
         # Note: this assert should probably be in initialization
         if str(type(encoder)).find('transformer.TransformerEncoder') > -1:
-            assert (self.init_decoder == "attention_matrix") , \
+            assert (self.init_decoder == "attention_matrix"), \
                 ("""Unsupported decoder initialization {}. Use 
                 the 'attention matrix' option for the '-init_decoder'
                 flag when using a transformer encoder""".format(
                     self.init_decoder))
 
         if self.init_decoder == 'attention_matrix' and self.bridge is not None:
-            enc_state = \
-                self.bridge.init_decoder_state(src,
-                                               memory_bank,
-                                               enc_final)
+            # WORKING: this path is currently broken
+            self.bridge.init_decoder_state(src,
+                                           memory_bank,
+                                           enc_final)
         else:
-            enc_state = decoder.init_decoder_state(
+            decoder.init_state(
                 src,
                 memory_bank,
                 enc_final)
-
-        return enc_state
 
 
 class NMTModel(nn.Module):

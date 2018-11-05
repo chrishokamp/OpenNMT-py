@@ -120,11 +120,14 @@ class RNNDecoderBase(nn.Module):
             self.state["hidden"] = tuple([_fix_enc_hidden(enc_hid)
                                           for enc_hid in encoder_final])
         else:  # GRU
-            self.state["hidden"] = (_fix_enc_hidden(encoder_final), )
+            # Chris: repeat for however many layers the decoder has
+            self.state["hidden"] = \
+                (_fix_enc_hidden(encoder_final).repeat(self.num_layers, 1, 1), )
 
         # Init the input feed.
         batch_size = self.state["hidden"][0].size(1)
         h_size = (batch_size, self.hidden_size)
+        # Chris: hidden is 3d, input_feed is 2d
         self.state["input_feed"] = \
             self.state["hidden"][0].data.new(*h_size).zero_().unsqueeze(0)
         self.state["coverage"] = None

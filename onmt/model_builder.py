@@ -5,7 +5,6 @@ and creates each encoder and decoder accordingly.
 
 import torch
 import torch.nn as nn
-from torch.nn.init import xavier_uniform_
 
 import onmt.inputters as inputters
 import onmt.modules
@@ -19,7 +18,7 @@ from onmt.encoders.image_encoder import ImageEncoder
 from onmt.decoders.decoder import InputFeedRNNDecoder, StdRNNDecoder
 from onmt.decoders.transformer import TransformerDecoder
 from onmt.decoders.cnn_decoder import CNNDecoder
-from onmt.attention_bridge import AttentionBridge
+from onmt.modules.attention_bridge import AttentionBridge
 
 from onmt.modules import Embeddings, CopyGenerator
 from onmt.utils.misc import use_gpu
@@ -219,7 +218,6 @@ def build_attention_bridge(model_opt):
     """
 
     # TODO: expand the options supported by the AttentionBrige
-
     return AttentionBridge(hidden_size=model_opt.enc_rnn_size,
                            num_attention_heads=model_opt.attention_heads,
                            dec_num_layers=model_opt.dec_layers)

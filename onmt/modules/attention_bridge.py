@@ -4,17 +4,10 @@ from __future__ import division
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-#from torch.nn.utils.rnn import pack_padded_sequence as pack
-#from torch.nn.utils.rnn import pad_packed_sequence as unpack
-
-#from onmt.encoders.encoder import EncoderBase
-#from onmt.utils.rnn_factory import *
-from onmt.decoders.decoder import RNNDecoderState
-#from onmt.decoders import decoder
 
 
+# WORKING: fix RNNDecoderState
+# WORKING: fix init_decoder when attention bridge is used
 class AttentionBridge(nn.Module):
     """
     Multi-headed attention. Bridge between encoders->decoders
@@ -92,6 +85,9 @@ class AttentionBridge(nn.Module):
         alphas = alphas.view(size[0], self.attention_hops, size[1])  # [bsz, hop, len]
         return torch.bmm(alphas, outp), alphas
 
+    # WORKING: this should (probably) be in MultiTaskModel, not here
+    # WORKING: in MultiTaskModel, if attention bridge is used,
+    # WORKING: model should use its output to init, otherwise model should use encoder output
     def init_decoder_state(self, src, memory_bank, encoder_final):
         '''
         initialize the decoder state, `s_0`.
