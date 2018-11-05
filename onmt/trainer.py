@@ -341,11 +341,13 @@ class Trainer(object):
 
             tgt = inputters.make_features(batch, 'tgt')
 
+            # TODO: decoder interface changed
             # F-prop through the model.
-            outputs, attns, _ = self.model(src, tgt,
-                            batch.src_lang,
-                            batch.tgt_lang,
-                            src_lengths)
+            outputs, attns = self.model(src, tgt,
+                                        batch.src_lang,
+                                        batch.tgt_lang,
+                                        src_lengths)
+
             # Compute loss.
             batch_stats = \
                 self.valid_losses[batch.tgt_lang].monolithic_compute_loss(
@@ -374,7 +376,7 @@ class Trainer(object):
             else:
                 trunc_size = target_size
 
-            dec_state = None
+            # dec_state = None
             src = inputters.make_features(batch, 'src', self.data_type)
             if self.data_type == 'text':
                 _, src_lengths = batch.src
@@ -394,12 +396,11 @@ class Trainer(object):
                 if self.grad_accum_count == 1:
                     self.model.zero_grad()
 
-                outputs, attns, dec_state = \
+                outputs, attns = \
                     self.model(src, tgt,
                                batch.src_lang,
                                batch.tgt_lang,
-                               src_lengths,
-                               dec_state)
+                               src_lengths)
 
                 # 3. Compute loss in shards for memory efficiency.
                 # Chris: note the loss is different for different decoders
@@ -423,8 +424,11 @@ class Trainer(object):
                     self.optim.step()
 
                 # If truncated, don't backprop fully.
-                if dec_state is not None:
-                    dec_state.detach()
+                # TO CHECK
+                # if dec_state is not None:
+                #    dec_state.detach()
+                if self.model.decoder.state is not None:
+                    self.model.decoder.detach_state()
 
         # in case of multi step gradient accumulation,
         # update only after accum batches

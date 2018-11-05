@@ -5,6 +5,7 @@ import argparse
 import codecs
 import os
 import math
+import copy
 
 import torch
 
@@ -338,7 +339,6 @@ class Translator(object):
         # TODO: faster code path for beam_size == 1.
 
         # TODO: support these blacklisted features.
-        assert not self.copy_attn
         assert not self.dump_beam
         assert not self.use_filter_pred
         assert self.block_ngram_repeat == 0
@@ -353,14 +353,35 @@ class Translator(object):
         # Encoder forward.
         src, enc_states, memory_bank, src_lengths = self._run_encoder(
             batch, data.data_type)
-        dec_states = self.model.decoder.init_decoder_state(
+        self.model.decoder.init_state(
             src, memory_bank, enc_states, with_cache=True)
 
+        results = {}
+        results["predictions"] = [[] for _ in range(batch_size)]  # noqa: F812
+        results["scores"] = [[] for _ in range(batch_size)]  # noqa: F812
+        results["attention"] = [[] for _ in range(batch_size)]  # noqa: F812
+        results["batch"] = batch
+        if "tgt" in batch.__dict__:
+            results["gold_score"] = self._score_target(
+                batch, copy.deepcopy(memory_bank, src_lengths))
+            self.model.decoder.init_state(
+                src, memory_bank, enc_states, with_cache=True)
+        else:
+            results["gold_score"] = [0] * batch_size
+
         # Tile states and memory beam_size times.
-        dec_states.map_batch_fn(
+        self.model.decoder.map_state(
             lambda state, dim: tile(state, beam_size, dim=dim))
-        memory_bank = tile(memory_bank, beam_size, dim=1)
+        if isinstance(memory_bank, tuple):
+            memory_bank = tuple(tile(x, beam_size, dim=1) for x in memory_bank)
+            mb_device = memory_bank[0].device
+        else:
+            memory_bank = tile(memory_bank, beam_size, dim=1)
+            mb_device = memory_bank.device
+
         memory_lengths = tile(src_lengths, beam_size)
+        src_map = (tile(batch.src_map, beam_size, dim=1)
+                   if data.data_type == 'text' and self.copy_attn else None)
 
         top_beam_finished = torch.zeros([batch_size], dtype=torch.uint8)
         batch_offset = torch.arange(batch_size, dtype=torch.long)
@@ -369,42 +390,54 @@ class Translator(object):
             batch_size * beam_size,
             step=beam_size,
             dtype=torch.long,
-            device=memory_bank.device)
+            device=mb_device)
         alive_seq = torch.full(
             [batch_size * beam_size, 1],
             start_token,
             dtype=torch.long,
-            device=memory_bank.device)
+            device=mb_device)
         alive_attn = None
 
         # Give full probability to the first beam on the first step.
         topk_log_probs = (
             torch.tensor([0.0] + [float("-inf")] * (beam_size - 1),
-                         device=memory_bank.device).repeat(batch_size))
+                         device=mb_device).repeat(batch_size))
 
         # Structure that holds finished hypotheses.
         hypotheses = [[] for _ in range(batch_size)]  # noqa: F812
 
-        results = {}
-        results["predictions"] = [[] for _ in range(batch_size)]  # noqa: F812
-        results["scores"] = [[] for _ in range(batch_size)]  # noqa: F812
-        results["attention"] = [[] for _ in range(batch_size)]  # noqa: F812
-        results["gold_score"] = [0] * batch_size
-        results["batch"] = batch
-
         for step in range(max_length):
             decoder_input = alive_seq[:, -1].view(1, -1, 1)
+            if self.copy_attn:
+                # Turn any copied words to UNKs (index 0).
+                decoder_input = decoder_input.masked_fill(
+                    decoder_input.gt(len(vocab) - 1), 0)
 
             # Decoder forward.
-            dec_out, dec_states, attn = self.model.decoder(
+            dec_out, dec_attn = self.model.decoder(
                 decoder_input,
                 memory_bank,
-                dec_states,
                 memory_lengths=memory_lengths,
                 step=step)
+            dec_out = dec_out.squeeze(0)
 
             # Generator forward.
-            log_probs = self.model.generator.forward(dec_out.squeeze(0))
+            if not self.copy_attn:
+                log_probs = self.model.generator.forward(dec_out)
+                attn = dec_attn["std"]
+            else:
+                scores = self.model.generator.forward(
+                    dec_out, dec_attn["copy"].squeeze(0), src_map)
+                scores = data.collapse_copy_scores(
+                    scores.view(-1, beam_size, scores.size(-1)),
+                    batch,
+                    vocab,
+                    data.src_vocabs,
+                    batch_dim=0,
+                    batch_offset=batch_offset)
+                log_probs = scores.view(-1, scores.size(-1)).log()
+                attn = dec_attn["copy"]
+
             vocab_size = log_probs.size(-1)
 
             if step < min_length:
@@ -439,7 +472,7 @@ class Translator(object):
                 [alive_seq.index_select(0, select_indices),
                  topk_ids.view(-1, 1)], -1)
             if return_attention:
-                current_attn = attn["std"].index_select(1, select_indices)
+                current_attn = attn.index_select(1, select_indices)
                 if alive_attn is None:
                     alive_attn = current_attn
                 else:
@@ -506,10 +539,17 @@ class Translator(object):
                               -1, alive_attn.size(-1))
 
             # Reorder states.
-            memory_bank = memory_bank.index_select(1, select_indices)
+            if isinstance(memory_bank, tuple):
+                memory_bank = tuple(x.index_select(1, select_indices)
+                                    for x in memory_bank)
+            else:
+                memory_bank = memory_bank.index_select(1, select_indices)
+
             memory_lengths = memory_lengths.index_select(0, select_indices)
-            dec_states.map_batch_fn(
+            self.model.decoder.map_state(
                 lambda state, dim: state.index_select(dim, select_indices))
+            if src_map is not None:
+                src_map = src_map.index_select(1, select_indices)
 
         return results
 
@@ -574,8 +614,7 @@ class Translator(object):
 
         src, enc_states, memory_bank, src_lengths = self._run_encoder(
             batch, data_type)
-        dec_states = self.model.decoder.init_decoder_state(
-            src, memory_bank, enc_states)
+        self.model.decoder.init_state(src, memory_bank, enc_states)
 
         # (2) Repeat src objects `beam_size` times.
         src_map = rvar(batch.src_map.data) \
@@ -586,7 +625,7 @@ class Translator(object):
             memory_bank = rvar(memory_bank.data)
 
         memory_lengths = src_lengths.repeat(beam_size)
-        dec_states.map_batch_fn(_repeat_beam_size_times)
+        self.model.decoder.map_state(_repeat_beam_size_times)
 
         # (3) run the decoder to generate sentences, using beam search.
         for i in range(self.max_length):
@@ -609,8 +648,8 @@ class Translator(object):
             inp = inp.unsqueeze(2)
 
             # Run one step.
-            dec_out, dec_states, attn = self.model.decoders[self.model.decoder_ids[self.tgt_lang]](
-                inp, memory_bank, dec_states,
+            dec_out, attn = self.model.decoders[self.model.decoder_ids[self.tgt_lang]](
+                inp, memory_bank,
                 memory_lengths=memory_lengths,
                 step=i)
 
@@ -650,7 +689,7 @@ class Translator(object):
                                   .transpose(0, 1) \
                                   .contiguous() \
                                   .view(-1)
-            dec_states.map_batch_fn(
+            self.model.decoder.map_state(
                 lambda state, dim: state.index_select(dim, select_indices))
 
         # (4) Extract sentences from beam.
@@ -688,7 +727,6 @@ class Translator(object):
         else:
             src_lengths = None
         src = inputters.make_features(batch, 'src', data_type)
-        tgt_in = inputters.make_features(batch, 'tgt')[:-1]
 
         #  (1) run the encoder on the src
         # Raul: make it compatible with neural_interlingua
@@ -696,22 +734,27 @@ class Translator(object):
         enc_states, memory_bank = self.model.encoders[self.model.encoder_ids[self.src_lang]](src, src_lengths)
         #dec_states = \
         #    self.model.decoder.init_decoder_state(src, memory_bank, enc_states)
-        dec_states = self.model.decoders[self.model.decoder_ids[self.tgt_lang]].init_decoder_state(
+
+        self.model.decoders[self.model.decoder_ids[self.tgt_lang]].init_decoder_state(
             src, memory_bank, enc_states)
 
         #enc_states, memory_bank, src_lengths \
         #    = self.model.encoder(src, src_lengths)
-        #dec_states = \
-        #    self.model.decoder.init_decoder_state(src, memory_bank, enc_states)
+        #self.model.decoder.init_state(src, memory_bank, enc_states)
 
         #  (2) if a target is specified, compute the 'goldScore'
         #  (i.e. log likelihood) of the target under the model
+        return self._score_target(batch, memory_bank, src_lengths)
+
+    def _score_target(self, batch, memory_bank, src_lengths):
+        tgt_in = inputters.make_features(batch, 'tgt')[:-1]
         tt = torch.cuda if self.cuda else torch
         gold_scores = tt.FloatTensor(batch.batch_size).fill_(0)
+
         #dec_out, _, _ = self.model.decoder(
         #    tgt_in, memory_bank, dec_states, memory_lengths=src_lengths)
-        dec_out, _, _ = self.model.decoders[self.model.decoder_ids[self.tgt_lang]](
-            tgt_in, memory_bank, dec_states, memory_lengths=src_lengths)
+        dec_out,  _ = self.model.decoders[self.model.decoder_ids[self.tgt_lang]](
+            tgt_in, memory_bank, memory_lengths=src_lengths)
 
         tgt_pad = self.fields["tgt"].vocab.stoi[inputters.PAD_WORD]
         for dec, tgt in zip(dec_out, batch.tgt[1:].data):

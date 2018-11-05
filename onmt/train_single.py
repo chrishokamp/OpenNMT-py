@@ -239,6 +239,11 @@ def main(opt, device_id=None):
         opt, model, fields, optim, data_type, generators, tgt_vocabs,
         model_saver=model_saver)
 
+    # Do training.
+    if len(opt.gpu_ranks):
+        logger.info('Starting training on GPU: %s' % opt.gpu_ranks)
+    else:
+        logger.info('Starting training on CPU, could be very slow')
     trainer.train(train_iter_fcts, valid_iter_fcts, opt.train_steps,
                   opt.valid_steps)
 
