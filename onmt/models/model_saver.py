@@ -94,7 +94,7 @@ class ModelSaver(ModelSaverBase):
     """
 
     def __init__(self, base_path, model, fields, save_checkpoint_steps,
-                 model_opt=None, optim=None, keep_checkpoint=0):
+                 model_opt=None, optim=None, keep_checkpoint=-1):
         super(ModelSaver, self).__init__(
             base_path, model, model_opt, fields, optim,
             save_checkpoint_steps, keep_checkpoint)

@@ -147,6 +147,25 @@ def model_opts(parser):
     group.add_argument('-lambda_coverage', type=float, default=1,
                        help='Lambda value for coverage.')
 
+    # neural_interlingua options
+    group = parser.add_argument_group('Attention_bridge')
+    group.add_argument('-use_attention_bridge', action='store_true',
+                       help="""Use self-attention layer between enc and dec""")
+    group.add_argument('-attention_heads', type=int, default=4,
+                       help="""Number of attention heads in attention bridge""")
+    group.add_argument('-init_decoder', type=str, default="rnn_final_state",
+                       choices=['rnn_final_state', 'attention_matrix'],
+                       help="""Method to initialize decoder. With the final state
+                       of the decoder or with the avrg of the attention bridge.
+                       IMPORTANT: 
+                       Must choose attention_matrix if -encoder_type transformer
+                       Must chose rnn_final state if -use_attention_bridge is NOT activated """)
+
+    # Option most relevant to image input
+    group.add_argument('-image_channel_size', type=int, default=3,
+                       choices=[3, 1],
+                       help="""Using grayscale image can training
+                       model faster and smaller""")
 
 def preprocess_opts(parser):
     """ Pre-procesing options """
@@ -443,28 +462,9 @@ def train_opts(parser):
     group.add_argument('-window_size', type=float, default=.02,
                        help="Window size for spectrogram in seconds.")
 
-   # neural_interlingua options
-    group = parser.add_argument_group('Attention_bridge')
-    group.add_argument('-use_attention_bridge', action='store_true',
-                       help="""Use self-attention layer between enc and dec""")
-    group.add_argument('-attention_heads', type=int, default=4,
-                      help="""Number of attention heads in attention brige""")
     group.add_argument('-report_bleu', action='store_true',
                        help="""Report bleu score after validation,
                        call tools/multi-bleu.perl on command line""")
-    group.add_argument('-init_decoder', type=str, default="rnn_final_state",
-                       choices=['rnn_final_state', 'attention_matrix'],
-                       help="""Method to initialize decoder. With the final state
-                       of the decoder or with the avrg of the attention bridge.
-                       IMPORTANT: 
-                       Must choose attention_matrix if -encoder_type transformer
-                       Must chose rnn_final state if -use_attention_bridge is NOT activated """)
-
-    # Option most relevant to image input
-    group.add_argument('-image_channel_size', type=int, default=3,
-                       choices=[3, 1],
-                       help="""Using grayscale image can training
-                       model faster and smaller""")
 
 
 def translate_opts(parser):
@@ -576,15 +576,6 @@ def translate_opts(parser):
                        help='Window stride for spectrogram in seconds')
     group.add_argument('-window', default='hamming',
                        help='Window type for spectrogram generation')
-   # neural_interlingua options
-    group = parser.add_argument_group('Attention_bridge')
-    group.add_argument('-use_attention_bridge', action='store_true',
-                       help="""Use self-attention layer between enc and dec""")
-    # Option most relevant to image input
-    group.add_argument('-image_channel_size', type=int, default=3,
-                       choices=[3, 1],
-                       help="""Using grayscale image can training
-                       model faster and smaller""")
 
 
 def translate_multimodel(parser):
