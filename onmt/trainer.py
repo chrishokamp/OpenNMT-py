@@ -238,7 +238,7 @@ class Trainer(object):
                     if self.gpu_rank == 0:
                         self._maybe_save(step)
 
-                    if (step % valid_steps == 0):
+                    if step % valid_steps == 0:
                         for lang_pair in valid_iter_fcts.items():
                             valid_iter_fct = lang_pair[1]
                             src_tgt = lang_pair[0]

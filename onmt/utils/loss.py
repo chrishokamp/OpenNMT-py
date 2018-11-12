@@ -235,7 +235,7 @@ class NMTLossCompute(LossComputeBase):
     Standard NMT Loss Computation.
     """
 
-    def __init__(self, generator, tgt_vocab, normalization="sents",
+    def __init__(self, generator, tgt_vocab,
                  label_smoothing=0.0):
         super(NMTLossCompute, self).__init__(generator, tgt_vocab)
         self.sparse = not isinstance(generator[1], nn.LogSoftmax)
