@@ -90,8 +90,16 @@ class Statistics(object):
         return 100 * (self.n_correct / self.n_words)
 
     def xent(self):
-        """ compute cross entropy """
-        return self.loss / self.n_words
+        """ compute word level cross entropy """
+        word_level_xent = self.loss / self.n_words
+        logger.info(
+            'Computing cross-entropy: '
+            'dividing loss: {} by num_words: '
+            '{}, result: {}'.format(
+                self.loss,
+                self.n_words,
+                word_level_xent))
+        return word_level_xent
 
     def ppl(self):
         """ compute perplexity """
