@@ -87,6 +87,7 @@ class MultiTaskModel(nn.Module):
         enc_final, memory_bank, lengths = encoder(src, src_lengths)
 
         # Implement attention bridge/compound attention
+        # TODO: this won't work with LSTM because of two hidden states in enc_final
         if self.bridge is not None:
             enc_final, memory_bank = self.bridge(memory_bank)
 
