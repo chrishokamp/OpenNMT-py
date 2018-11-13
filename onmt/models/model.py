@@ -90,7 +90,6 @@ class MultiTaskModel(nn.Module):
         if self.bridge is not None:
             enc_final, memory_bank = self.bridge(memory_bank)
 
-        # TODO: this doesn't work with new decoder interface
         self.init_decoder_state(encoder, decoder,
                                 src, memory_bank, enc_final)
 
