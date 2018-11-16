@@ -104,15 +104,16 @@ class MultiTaskModel(nn.Module):
                            src, memory_bank, enc_final):
         # initialize decoder
         # Note: this assert should probably be in initialization
-        if str(type(encoder)).find('transformer.TransformerEncoder') > -1:
-            assert (self.init_decoder == "attention_matrix"), \
-                ("""Unsupported decoder initialization {}. Use 
-                the 'attention matrix' option for the '-init_decoder'
-                flag when using a transformer encoder""".format(
-                    self.init_decoder))
+        #if str(type(encoder)).find('transformer.TransformerEncoder') > -1:
+        #    assert (self.init_decoder == "attention_matrix"), \
+        #        ("""Unsupported decoder initialization {}. Use
+        #        the 'attention matrix' option for the '-init_decoder'
+        #        flag when using a transformer encoder""".format(
+        #            self.init_decoder))
 
         if self.init_decoder == 'attention_matrix' and self.bridge is not None:
             # WORKING: this path is currently broken
+            raise NotImplementedError
             self.bridge.init_decoder_state(src,
                                            memory_bank,
                                            enc_final)
