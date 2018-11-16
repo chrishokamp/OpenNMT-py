@@ -328,10 +328,14 @@ def shards(state, shard_size, eval_only=False):
         # over the shards, not over the keys: therefore, the values need
         # to be re-zipped by shard and then each shard can be paired
         # with the keys.
+
+        # The caller of this function will consume each shard and put
+        # gradients on it
         for shard_tensors in zip(*values):
             yield dict(zip(keys, shard_tensors))
 
-        # Assumed backprop'd
+        # Assumed backprop'd, that gives us the .grad attribute on the sharded
+        #   variable
         variables = []
         for k, (v, v_split) in non_none.items():
             if isinstance(v, torch.Tensor) and state[k].requires_grad:

@@ -23,7 +23,7 @@ class TransformerEncoderLayer(nn.Module):
         dropout (float): dropout probability(0-1.0).
     """
 
-    def __init__(self, d_model, heads, d_ff, dropout):
+    def __init__(self, d_model, heads, d_ff, dropout, cache_weights=False):
         super(TransformerEncoderLayer, self).__init__()
 
         self.self_attn = onmt.modules.MultiHeadedAttention(
@@ -31,6 +31,8 @@ class TransformerEncoderLayer(nn.Module):
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout)
         self.layer_norm = onmt.modules.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
+        self.cache_weights = cache_weights
+        self.cache = {}
 
     def forward(self, inputs, mask):
         """
@@ -46,8 +48,14 @@ class TransformerEncoderLayer(nn.Module):
             * outputs `[batch_size x src_len x model_dim]`
         """
         input_norm = self.layer_norm(inputs)
-        context, _ = self.self_attn(input_norm, input_norm, input_norm,
-                                    mask=mask)
+        context, attn = self.self_attn(input_norm, input_norm, input_norm,
+                                       mask=mask)
+
+        # attach attention weights to cache
+        if self.cache_weights:
+            self.cache['attention_weights'] = attn
+            import ipdb;ipdb.set_trace()
+
         out = self.dropout(context) + inputs
         return self.feed_forward(out)
 
@@ -85,14 +93,19 @@ class TransformerEncoder(EncoderBase):
     """
 
     def __init__(self, num_layers, d_model, heads, d_ff,
-                 dropout, embeddings):
+                 dropout, embeddings, cache_weight_layers=None):
         super(TransformerEncoder, self).__init__()
 
         self.num_layers = num_layers
         self.embeddings = embeddings
+        if cache_weight_layers is None:
+            cache_weight_layers = []
         self.transformer = nn.ModuleList(
-            [TransformerEncoderLayer(d_model, heads, d_ff, dropout)
-             for _ in range(num_layers)])
+            [TransformerEncoderLayer(
+                d_model, heads, d_ff, dropout,
+                cache_weights=True if layer_idx in cache_weight_layers
+                else False)
+             for layer_idx in range(num_layers)])
         self.layer_norm = onmt.modules.LayerNorm(d_model)
 
     def forward(self, src, lengths=None):
