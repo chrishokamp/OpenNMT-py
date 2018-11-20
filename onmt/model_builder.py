@@ -40,6 +40,7 @@ def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True):
         embedding_dim = opt.tgt_word_vec_size
 
     word_padding_idx = word_dict.stoi[inputters.PAD_WORD]
+    assert word_padding_idx != 0, 'padding index should not be the same as unk'
     num_word_embeddings = len(word_dict)
 
     feats_padding_idx = [feat_dict.stoi[inputters.PAD_WORD]
