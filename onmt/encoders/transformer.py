@@ -54,7 +54,7 @@ class TransformerEncoderLayer(nn.Module):
         # attach attention weights to cache
         if self.cache_weights:
             self.cache['attention_weights'] = attn
-            import ipdb;ipdb.set_trace()
+            # import ipdb;ipdb.set_trace()
 
         out = self.dropout(context) + inputs
         return self.feed_forward(out)
