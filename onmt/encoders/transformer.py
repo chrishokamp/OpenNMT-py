@@ -40,7 +40,7 @@ class TransformerEncoderLayer(nn.Module):
         self.cache_weights = cache_weights
         self.cache = {}
 
-    def forward(self, inputs, mask):
+    def forward(self, inputs, mask, mask_heads_after=None):
         """
         Transformer Encoder Layer definition.
 
@@ -55,7 +55,8 @@ class TransformerEncoderLayer(nn.Module):
         """
         input_norm = self.layer_norm(inputs)
         context, attn = self.self_attn(input_norm, input_norm, input_norm,
-                                       mask=mask)
+                                       mask=mask,
+                                       mask_heads_after=mask_heads_after)
 
         # attach attention weights to cache
         if self.cache_weights:
@@ -123,6 +124,10 @@ class TransformerEncoder(EncoderBase):
              for layer_idx in range(num_layers)])
         self.layer_norm = onmt.modules.LayerNorm(d_model)
 
+        # this can be set dynamically externally
+        self.num_heads = heads
+        self.mask_heads_after = None
+
     def forward(self, src, lengths=None):
         """ See :obj:`EncoderBase.forward()`"""
         self._check_args(src, lengths)
@@ -137,7 +142,8 @@ class TransformerEncoder(EncoderBase):
             .expand(w_batch, w_len, w_len)
         # Run the forward pass of every layer of the tranformer.
         for i in range(self.num_layers):
-            out = self.transformer[i](out, mask)
+            out = self.transformer[i](out, mask,
+                                      mask_heads_after=self.mask_heads_after)
         out = self.layer_norm(out)
 
         return emb, out.transpose(0, 1).contiguous(), lengths

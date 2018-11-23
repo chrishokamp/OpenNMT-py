@@ -67,7 +67,7 @@ class MultiHeadedAttention(nn.Module):
         self.final_linear = nn.Linear(model_dim, model_dim)
 
     def forward(self, key, value, query, mask=None,
-                layer_cache=None, type=None):
+                layer_cache=None, type=None, mask_heads_after=None):
         """
         Compute the context vector and the attention vectors.
 
@@ -182,6 +182,11 @@ class MultiHeadedAttention(nn.Module):
 
         # 3) Apply attention dropout and compute context vectors.
         attn = self.softmax(scores)
+        if mask_heads_after is not None:
+            head_mask = torch.ones(attn.shape)
+            head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
+            attn = attn * head_mask
+
         drop_attn = self.dropout(attn)
         context = unshape(torch.matmul(drop_attn, value))
 
