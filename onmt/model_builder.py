@@ -100,7 +100,8 @@ def build_decoder(opt, embeddings):
                                   opt.heads, opt.transformer_ff,
                                   opt.global_attention, opt.copy_attn,
                                   opt.self_attn_type,
-                                  opt.dropout, embeddings)
+                                  opt.dropout, embeddings,
+                                  cache_weight_layers=getattr(opt, 'dec_cache_weight_layers', None))
     elif opt.decoder_type == "cnn":
         return CNNDecoder(opt.dec_layers, opt.dec_rnn_size,
                           opt.global_attention, opt.copy_attn,

@@ -99,7 +99,8 @@ class TransformerEncoder(EncoderBase):
     """
 
     def __init__(self, num_layers, d_model, heads, d_ff,
-                 dropout, embeddings, cache_weight_layers=None,
+                 dropout, embeddings,
+                 cache_weight_layers=None,
                  share_self_attn=False):
         super(TransformerEncoder, self).__init__()
 

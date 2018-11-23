@@ -25,7 +25,8 @@ class TransformerDecoderLayer(nn.Module):
     """
 
     def __init__(self, d_model, heads, d_ff, dropout,
-                 self_attn_type="scaled-dot"):
+                 self_attn_type="scaled-dot",
+                 cache_weights=False):
         super(TransformerDecoderLayer, self).__init__()
 
         self.self_attn_type = self_attn_type
@@ -44,10 +45,14 @@ class TransformerDecoderLayer(nn.Module):
         self.layer_norm_2 = onmt.modules.LayerNorm(d_model)
         self.dropout = dropout
         self.drop = nn.Dropout(dropout)
+
         mask = self._get_attn_subsequent_mask(MAX_SIZE)
         # Register self.mask as a buffer in TransformerDecoderLayer, so
         # it gets TransformerDecoderLayer's cuda behavior automatically.
         self.register_buffer('mask', mask)
+
+        self.cache_weights = cache_weights
+        self.cache = {}
 
     def forward(self, inputs, memory_bank, src_pad_mask, tgt_pad_mask,
                 previous_input=None, layer_cache=None, step=None):
@@ -92,6 +97,11 @@ class TransformerDecoderLayer(nn.Module):
                                       mask=src_pad_mask,
                                       layer_cache=layer_cache,
                                       type="context")
+
+        # put attention weights in cache
+        if self.cache_weights:
+            self.cache['attention_weights'] = attn
+
         output = self.feed_forward(self.drop(mid) + query)
 
         return output, attn, all_input
@@ -145,7 +155,8 @@ class TransformerDecoder(nn.Module):
     """
 
     def __init__(self, num_layers, d_model, heads, d_ff, attn_type,
-                 copy_attn, self_attn_type, dropout, embeddings):
+                 copy_attn, self_attn_type, dropout, embeddings,
+                 cache_weight_layers=None):
         super(TransformerDecoder, self).__init__()
 
         # Basic attributes.
@@ -154,14 +165,19 @@ class TransformerDecoder(nn.Module):
         self.embeddings = embeddings
         self.self_attn_type = self_attn_type
 
+        if cache_weight_layers is None:
+            cache_weight_layers = []
+
         # Decoder State
         self.state = {}
 
         # Build TransformerDecoder.
         self.transformer_layers = nn.ModuleList(
             [TransformerDecoderLayer(d_model, heads, d_ff, dropout,
-             self_attn_type=self_attn_type)
-             for _ in range(num_layers)])
+                self_attn_type=self_attn_type,
+                cache_weights=True if layer_idx in cache_weight_layers
+                else False)
+             for layer_idx in range(num_layers)])
 
         # TransformerDecoder has its own attention mechanism.
         # Set up a separated copy attention layer, if needed.
