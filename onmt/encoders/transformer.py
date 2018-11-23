@@ -23,11 +23,17 @@ class TransformerEncoderLayer(nn.Module):
         dropout (float): dropout probability(0-1.0).
     """
 
-    def __init__(self, d_model, heads, d_ff, dropout, cache_weights=False):
+    def __init__(self, d_model, heads, d_ff, dropout,
+                 self_attn=None, cache_weights=False):
         super(TransformerEncoderLayer, self).__init__()
 
-        self.self_attn = onmt.modules.MultiHeadedAttention(
-            heads, d_model, dropout=dropout)
+        # if a self_attn wasn't provided, init one for this layer
+        if self_attn is None:
+            self.self_attn = onmt.modules.MultiHeadedAttention(
+                heads, d_model, dropout=dropout)
+        else:
+            self.self_attn = self_attn
+
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout)
         self.layer_norm = onmt.modules.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
@@ -93,16 +99,24 @@ class TransformerEncoder(EncoderBase):
     """
 
     def __init__(self, num_layers, d_model, heads, d_ff,
-                 dropout, embeddings, cache_weight_layers=None):
+                 dropout, embeddings, cache_weight_layers=None,
+                 share_self_attn=False):
         super(TransformerEncoder, self).__init__()
 
         self.num_layers = num_layers
         self.embeddings = embeddings
         if cache_weight_layers is None:
             cache_weight_layers = []
+
+        self_attn = None
+        if share_self_attn:
+            self_attn = onmt.modules.MultiHeadedAttention(
+                heads, d_model, dropout=dropout)
+
         self.transformer = nn.ModuleList(
             [TransformerEncoderLayer(
                 d_model, heads, d_ff, dropout,
+                self_attn=self_attn,
                 cache_weights=True if layer_idx in cache_weight_layers
                 else False)
              for layer_idx in range(num_layers)])
