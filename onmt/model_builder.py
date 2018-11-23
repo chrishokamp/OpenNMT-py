@@ -73,7 +73,8 @@ def build_encoder(opt, embeddings):
             opt.enc_layers, opt.enc_rnn_size,
             opt.heads, opt.transformer_ff,
             opt.dropout, embeddings,
-            cache_weight_layers=getattr(opt, 'enc_cache_weight_layers', None))
+            cache_weight_layers=getattr(opt, 'enc_cache_weight_layers', None),
+            share_self_attn=getattr(opt, 'enc_share_self_attn', False))
     elif opt.encoder_type == "cnn":
         return CNNEncoder(opt.enc_layers, opt.enc_rnn_size,
                           opt.cnn_kernel_width,
