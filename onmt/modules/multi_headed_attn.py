@@ -174,19 +174,21 @@ class MultiHeadedAttention(nn.Module):
 
         # 2) Calculate and scale scores.
         query = query / math.sqrt(dim_per_head)
+
+        # unnormalized attention (pre-softmax)
         scores = torch.matmul(query, key.transpose(2, 3))
 
         if mask is not None:
             mask = mask.unsqueeze(1).expand_as(scores)
             scores = scores.masked_fill(mask, -1e18)
 
+        if mask_heads_after is not None:
+            head_mask = torch.ones(scores.shape)
+            head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
+            scores = scores * head_mask
+
         # 3) Apply attention dropout and compute context vectors.
         attn = self.softmax(scores)
-        if mask_heads_after is not None:
-            head_mask = torch.ones(attn.shape)
-            head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
-            attn = attn * head_mask
-
         drop_attn = self.dropout(attn)
         context = unshape(torch.matmul(drop_attn, value))
 
@@ -205,4 +207,8 @@ class MultiHeadedAttention(nn.Module):
         #    .contiguous()
         #return output, top_attn
 
-        return output, attn
+        # Chris: return softmax-normalized attention weights
+        # return output, attn
+
+        # Chris: return raw attention scores
+        return output, scores
