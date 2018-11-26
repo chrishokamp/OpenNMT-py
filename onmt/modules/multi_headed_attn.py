@@ -3,6 +3,11 @@ import math
 import torch
 import torch.nn as nn
 
+import numpy
+
+from torchsparseattn.fused import Fusedmax
+from torchsparseattn.sparsemax import Sparsemax
+
 # from onmt.utils.misc import aeq
 
 
@@ -62,7 +67,11 @@ class MultiHeadedAttention(nn.Module):
                                        head_count * self.dim_per_head)
         self.linear_query = nn.Linear(model_dim,
                                       head_count * self.dim_per_head)
+
         self.softmax = nn.Softmax(dim=-1)
+        #self.softmax = Fusedmax()
+        #self.softmax = Sparsemax()
+
         self.dropout = nn.Dropout(dropout)
         self.final_linear = nn.Linear(model_dim, model_dim)
 
@@ -182,13 +191,23 @@ class MultiHeadedAttention(nn.Module):
             mask = mask.unsqueeze(1).expand_as(scores)
             scores = scores.masked_fill(mask, -1e18)
 
-        if mask_heads_after is not None:
-            head_mask = torch.ones(scores.shape)
-            head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
-            scores = scores * head_mask
-
         # 3) Apply attention dropout and compute context vectors.
+        # TODO: try sparsemax and variants here
+        #batch, heads, enc_len, _ = scores.shape
+        #scores = scores.cpu()
+        #lens = [enc_len] * (batch * heads * enc_len)
+        #attn = self.softmax(scores.view(-1, enc_len), torch.LongTensor(numpy.array(lens)))
+        #attn = attn.cuda()
+        #attn = attn.view(*scores.shape)
+        
         attn = self.softmax(scores)
+
+        if mask_heads_after is not None:
+            #head_mask = torch.ones(scores.shape)
+            head_mask = torch.ones(attn.shape, device='cuda:0')
+            head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
+            attn = attn * head_mask
+
         drop_attn = self.dropout(attn)
         context = unshape(torch.matmul(drop_attn, value))
 
@@ -208,7 +227,7 @@ class MultiHeadedAttention(nn.Module):
         #return output, top_attn
 
         # Chris: return softmax-normalized attention weights
-        # return output, attn
+        return output, attn
 
         # Chris: return raw attention scores
-        return output, scores
+        #return output, scores
