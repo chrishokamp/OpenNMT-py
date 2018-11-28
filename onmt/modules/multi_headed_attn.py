@@ -212,7 +212,9 @@ class MultiHeadedAttention(nn.Module):
             head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
             attn = attn * head_mask
 
+        # Chris: note this type of dropout is masking entire input timesteps from this head
         drop_attn = self.dropout(attn)
+
         # Note: head_outputs is "output" from https://arxiv.org/pdf/1810.10183.pdf
         head_outputs = torch.matmul(drop_attn, value)
         context = unshape(head_outputs)
