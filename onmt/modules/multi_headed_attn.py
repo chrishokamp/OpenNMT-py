@@ -5,8 +5,9 @@ import torch.nn as nn
 
 import numpy
 
-from torchsparseattn.fused import Fusedmax
-from torchsparseattn.sparsemax import Sparsemax
+# Chris: sparseattn is currently way too slow
+#from torchsparseattn.fused import Fusedmax
+#from torchsparseattn.sparsemax import Sparsemax
 
 # from onmt.utils.misc import aeq
 
@@ -53,6 +54,9 @@ class MultiHeadedAttention(nn.Module):
        dropout (float): dropout parameter
     """
 
+    # CHRIS: TODO: working: add "information_to_return" kwarg -- configurable fields
+    # CHRIS: TODO: returned attn can be a dict that caches everything
+    # CHRIS: that should be returned in addition to the actual attn output
     def __init__(self, head_count, model_dim, dropout=0.1):
         assert model_dim % head_count == 0
         self.dim_per_head = model_dim // head_count
@@ -199,7 +203,7 @@ class MultiHeadedAttention(nn.Module):
         #attn = self.softmax(scores.view(-1, enc_len), torch.LongTensor(numpy.array(lens)))
         #attn = attn.cuda()
         #attn = attn.view(*scores.shape)
-        
+
         attn = self.softmax(scores)
 
         if mask_heads_after is not None:
@@ -209,7 +213,9 @@ class MultiHeadedAttention(nn.Module):
             attn = attn * head_mask
 
         drop_attn = self.dropout(attn)
-        context = unshape(torch.matmul(drop_attn, value))
+        # Note: head_outputs is "output" from https://arxiv.org/pdf/1810.10183.pdf
+        head_outputs = torch.matmul(drop_attn, value)
+        context = unshape(head_outputs)
 
         output = self.final_linear(context)
         # CHECK
@@ -227,7 +233,10 @@ class MultiHeadedAttention(nn.Module):
         #return output, top_attn
 
         # Chris: return softmax-normalized attention weights
-        return output, attn
+        #return output, attn
+
+        # Chris: return output vector of each head
+        return output, head_outputs
 
         # Chris: return raw attention scores
         #return output, scores
