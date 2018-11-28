@@ -54,10 +54,12 @@ class MultiHeadedAttention(nn.Module):
        dropout (float): dropout parameter
     """
 
-    # CHRIS: TODO: working: add "information_to_return" kwarg -- configurable fields
+    # CHRIS: TODO: working: add "information_to_return" kwarg -- configurable fields to return and set on cache
     # CHRIS: TODO: returned attn can be a dict that caches everything
     # CHRIS: that should be returned in addition to the actual attn output
-    def __init__(self, head_count, model_dim, dropout=0.1):
+    def __init__(self, head_count, model_dim,
+                 information_to_cache=None,
+                 dropout=0.1):
         assert model_dim % head_count == 0
         self.dim_per_head = model_dim // head_count
         self.model_dim = model_dim
@@ -75,6 +77,9 @@ class MultiHeadedAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
         #self.softmax = Fusedmax()
         #self.softmax = Sparsemax()
+        self.information_to_cache = []
+        if information_to_cache is not None:
+            self.information_to_cache = information_to_cache
 
         self.dropout = nn.Dropout(dropout)
         self.final_linear = nn.Linear(model_dim, model_dim)
@@ -212,11 +217,18 @@ class MultiHeadedAttention(nn.Module):
             head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
             attn = attn * head_mask
 
+        attn_cache = {}
+        if 'attn_weights' in self.information_to_cache:
+            attn_cache['attn_weights'] = attn
+
         # Chris: note this type of dropout is masking entire input timesteps from this head
         drop_attn = self.dropout(attn)
 
         # Note: head_outputs is "output" from https://arxiv.org/pdf/1810.10183.pdf
         head_outputs = torch.matmul(drop_attn, value)
+        if 'attn_head_outputs' in self.information_to_cache:
+            attn_cache['attn_head_outputs'] = head_outputs
+
         context = unshape(head_outputs)
 
         output = self.final_linear(context)
@@ -228,17 +240,22 @@ class MultiHeadedAttention(nn.Module):
 
         # Chris: not one top attn, return all attentions
         # Return one attn
-        #top_attn = attn \
-        #    .view(batch_size, head_count,
-        #          query_len, key_len)[:, 0, :, :] \
-        #    .contiguous()
+        top_attn = attn \
+            .view(batch_size, head_count,
+                  query_len, key_len)[:, 0, :, :] \
+            .contiguous()
+        attn_cache['top_attn'] = top_attn
+
         #return output, top_attn
 
         # Chris: return softmax-normalized attention weights
         #return output, attn
 
         # Chris: return output vector of each head
-        return output, head_outputs
+        # return output, head_outputs
+
+        # Chris: return a cache containing multiple intermediate tensors
+        return output, attn_cache
 
         # Chris: return raw attention scores
         #return output, scores

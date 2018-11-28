@@ -30,7 +30,13 @@ class TransformerEncoderLayer(nn.Module):
         # if a self_attn wasn't provided, init one for this layer
         if self_attn is None:
             self.self_attn = onmt.modules.MultiHeadedAttention(
-                heads, d_model, dropout=dropout)
+                heads, d_model,
+                dropout=dropout,
+                information_to_cache=[
+                    'attn_weights',
+                    'attn_head_outputs'
+                ]
+            )
         else:
             self.self_attn = self_attn
 
@@ -60,8 +66,7 @@ class TransformerEncoderLayer(nn.Module):
 
         # attach attention weights to cache
         if self.cache_weights:
-            self.cache['attention_weights'] = attn
-            # import ipdb;ipdb.set_trace()
+            self.cache['attention_cache'] = attn
 
         out = self.dropout(context) + inputs
         return self.feed_forward(out)

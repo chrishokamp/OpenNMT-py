@@ -33,7 +33,12 @@ class TransformerDecoderLayer(nn.Module):
 
         if self_attn_type == "scaled-dot":
             self.self_attn = onmt.modules.MultiHeadedAttention(
-                heads, d_model, dropout=dropout)
+                heads, d_model,
+                dropout=dropout,
+                information_to_cache=[
+                    'attn_weights',
+                    'attn_head_outputs',
+                ])
         elif self_attn_type == "average":
             self.self_attn = onmt.modules.AverageAttention(
                 d_model, dropout=dropout)
@@ -100,7 +105,7 @@ class TransformerDecoderLayer(nn.Module):
 
         # put attention weights in cache
         if self.cache_weights:
-            self.cache['attention_weights'] = attn
+            self.cache['attention_cache'] = attn
 
         output = self.feed_forward(self.drop(mid) + query)
 
@@ -287,7 +292,8 @@ class TransformerDecoder(nn.Module):
 
         # Process the result and update the attentions.
         dec_outs = output.transpose(0, 1).contiguous()
-        attn = attn.transpose(0, 1).contiguous()
+
+        attn = attn['top_attn'].transpose(0, 1).contiguous()
 
         attns["std"] = attn
         if self._copy:
