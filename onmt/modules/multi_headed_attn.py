@@ -130,6 +130,8 @@ class MultiHeadedAttention(nn.Module):
 
         def shape(x):
             """  projection """
+            # (batch, time, head, head_dim)(?)
+            # (batch, head, time, head_dim)(?)
             return x.view(batch_size, -1, head_count, dim_per_head) \
                 .transpose(1, 2)
 
@@ -190,7 +192,18 @@ class MultiHeadedAttention(nn.Module):
         key_len = key.size(2)
         query_len = query.size(2)
 
+        attn_cache = {}
+        if 'attn_keys' in self.information_to_cache:
+            attn_cache['attn_keys'] = key
+        if 'attn_values' in self.information_to_cache:
+            attn_cache['attn_values'] = value
+        if 'attn_queries' in self.information_to_cache:
+            attn_cache['attn_queries'] = query
+        # TODO: send these through
+
         # 2) Calculate and scale scores.
+        # Chris: why do they scale the query? -- it's to constrain the softmax range to keep gradient
+        # Chris: section 3.2.1 of attention is all you need https://arxiv.org/pdf/1706.03762.pdf
         query = query / math.sqrt(dim_per_head)
 
         # unnormalized attention (pre-softmax)
@@ -217,7 +230,6 @@ class MultiHeadedAttention(nn.Module):
             head_mask[:, mask_heads_after:self.head_count, :, :] = 0.
             attn = attn * head_mask
 
-        attn_cache = {}
         if 'attn_weights' in self.information_to_cache:
             attn_cache['attn_weights'] = attn
 

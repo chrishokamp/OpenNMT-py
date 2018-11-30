@@ -31,6 +31,7 @@ class TransformerDecoderLayer(nn.Module):
 
         self.self_attn_type = self_attn_type
 
+        # Chris: note currently hard-coded information to cache
         if self_attn_type == "scaled-dot":
             self.self_attn = onmt.modules.MultiHeadedAttention(
                 heads, d_model,
@@ -38,6 +39,9 @@ class TransformerDecoderLayer(nn.Module):
                 information_to_cache=[
                     'attn_weights',
                     'attn_head_outputs',
+                    'attn_keys',
+                    'attn_values',
+                    'attn_queries'
                 ])
         elif self_attn_type == "average":
             self.self_attn = onmt.modules.AverageAttention(
