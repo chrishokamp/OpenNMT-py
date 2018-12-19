@@ -45,7 +45,7 @@ class TransformerEncoderLayer(nn.Module):
             self.self_attn = self_attn
 
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout)
-        self.layer_norm = onmt.modules.LayerNorm(d_model)
+        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
         self.dropout = nn.Dropout(dropout)
         self.cache_weights = cache_weights
         self.cache = {}
@@ -125,13 +125,9 @@ class TransformerEncoder(EncoderBase):
                 heads, d_model, dropout=dropout)
 
         self.transformer = nn.ModuleList(
-            [TransformerEncoderLayer(
-                d_model, heads, d_ff, dropout,
-                self_attn=self_attn,
-                cache_weights=True if layer_idx in cache_weight_layers
-                else False)
-             for layer_idx in range(num_layers)])
-        self.layer_norm = onmt.modules.LayerNorm(d_model)
+            [TransformerEncoderLayer(d_model, heads, d_ff, dropout)
+             for _ in range(num_layers)])
+        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
         # this can be set dynamically externally
         self.num_heads = heads
@@ -147,8 +143,7 @@ class TransformerEncoder(EncoderBase):
         words = src[:, :, 0].transpose(0, 1)
         w_batch, w_len = words.size()
         padding_idx = self.embeddings.word_padding_idx
-        mask = words.data.eq(padding_idx).unsqueeze(1) \
-            .expand(w_batch, w_len, w_len)
+        mask = words.data.eq(padding_idx).unsqueeze(1)  # [B, 1, T]
         # Run the forward pass of every layer of the tranformer.
         for i in range(self.num_layers):
             out = self.transformer[i](out, mask,
