@@ -199,7 +199,6 @@ class MultiHeadedAttention(nn.Module):
             attn_cache['attn_values'] = value
         if 'attn_queries' in self.information_to_cache:
             attn_cache['attn_queries'] = query
-        # TODO: send these through
 
         # 2) Calculate and scale scores.
         # Chris: why do they scale the query? -- it's to constrain the softmax range to keep gradient
@@ -214,7 +213,7 @@ class MultiHeadedAttention(nn.Module):
             scores = scores.masked_fill(mask, -1e18)
 
         # 3) Apply attention dropout and compute context vectors.
-        # TODO: try sparsemax and variants here
+        # Note: tried sparsemax and variants here but they're way too slow
         #batch, heads, enc_len, _ = scores.shape
         #scores = scores.cpu()
         #lens = [enc_len] * (batch * heads * enc_len)
