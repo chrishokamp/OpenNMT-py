@@ -400,21 +400,33 @@ def _merge_field_vocabs(src_field, tgt_field, vocab_size, min_freq):
     assert len(src_field.vocab) == len(tgt_field.vocab)
 
 
-def load_vocabulary(vocab_path, tag):
+def load_vocabulary(vocabulary_path, tag=""):
     """
     Loads a vocabulary from the given path.
     :param vocabulary_path: path to load vocabulary from
     :param tag: tag for vocabulary (only used for logging)
     :return: vocabulary or None if path is null
     """
-    logger.info("Loading {} vocabulary from {}".format(tag, vocab_path))
 
-    if not os.path.exists(vocab_path):
-        raise RuntimeError(
-            "{} vocabulary not found at {}".format(tag, vocab_path))
-    else:
-        with codecs.open(vocab_path, 'r', 'utf-8') as f:
-            return [line.strip().split()[0] for line in f if line.strip()]
+    vocabulary = None
+    if vocabulary_path:
+        if not os.path.exists(vocabulary_path):
+            raise RuntimeError(
+                "{} vocabulary not found at {}!".format(tag, vocabulary_path))
+
+        logger.info("Loading {} vocabulary from {}".format(tag,
+                                                           vocabulary_path))
+        vocabulary = OrderedDict()
+        with open(vocabulary_path) as f:
+            idx = 0
+            for line in f:
+                if len(line.strip()) == 0:
+                    continue
+                word = line.strip().split()[0]
+                vocabulary[word] = idx
+                idx += 1
+
+    return vocabulary
 
 
 class OrderedIterator(torchtext.data.Iterator):

@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import onmt
 from onmt.modules.sparse_losses import SparsemaxLoss
 from onmt.modules.sparse_activations import LogSparsemax
+from onmt import inputters
 
 
 def build_loss_compute(model, tgt_field, opt, train=True):
@@ -68,15 +69,44 @@ def build_loss_from_generator_and_vocab(generator,
     own *LossCompute class, by subclassing LossComputeBase.
     """
     device = torch.device("cuda" if onmt.utils.misc.use_gpu(opt) else "cpu")
+    padding_idx = tgt_vocab.stoi[inputters.PAD_WORD]
+    unk_idx = tgt_vocab.stoi[inputters.UNK_WORD]
+
+    #if opt.copy_attn:
+    #    compute = onmt.modules.CopyGeneratorLossCompute(
+    #        generator, tgt_vocab, opt.copy_attn_force,
+    #        opt.copy_loss_by_seqlength)
+    #else:
+    #    compute = NMTLossCompute(
+    #        generator, tgt_vocab,
+    #        label_smoothing=opt.label_smoothing if train else 0.0)
 
     if opt.copy_attn:
-        compute = onmt.modules.CopyGeneratorLossCompute(
-            generator, tgt_vocab, opt.copy_attn_force,
-            opt.copy_loss_by_seqlength)
+        criterion = onmt.modules.CopyGeneratorLoss(
+            len(tgt_vocab), opt.copy_attn_force,
+            unk_index=unk_idx, ignore_index=padding_idx
+        )
+    elif opt.label_smoothing > 0 and train:
+        criterion = LabelSmoothingLoss(
+            opt.label_smoothing, len(tgt_vocab), ignore_index=padding_idx
+        )
+    elif isinstance(generator[1], LogSparsemax):
+        criterion = SparsemaxLoss(ignore_index=padding_idx, reduction='sum')
     else:
-        compute = NMTLossCompute(
-            generator, tgt_vocab,
-            label_smoothing=opt.label_smoothing if train else 0.0)
+        criterion = nn.NLLLoss(ignore_index=padding_idx, reduction='sum')
+
+    # if the loss function operates on vectors of raw logits instead of
+    # probabilities, only the first part of the generator needs to be
+    # passed to the NMTLossCompute. At the moment, the only supported
+    # loss function of this kind is the sparsemax loss.
+    use_raw_logits = isinstance(criterion, SparsemaxLoss)
+    loss_gen = generator[0] if use_raw_logits else generator
+    if opt.copy_attn:
+        compute = onmt.modules.CopyGeneratorLossCompute(
+            criterion, loss_gen, tgt_vocab, opt.copy_loss_by_seqlength
+        )
+    else:
+        compute = NMTLossCompute(criterion, loss_gen)
     compute.to(device)
 
     return compute
