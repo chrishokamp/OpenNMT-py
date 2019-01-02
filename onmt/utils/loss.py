@@ -291,9 +291,10 @@ class NMTLossCompute(LossComputeBase):
         super(NMTLossCompute, self).__init__(criterion, generator)
 
     def _make_shard_state(self, batch, output, range_, attns=None):
+        # TODO: this offset won't work for sequence labeling, we don't want to offset at all
         return {
             "output": output,
-            "target": batch.tgt[range_[0] + 1: range_[1]],
+            "target": batch.tgt[(range_[0] + 1):range_[1]],
         }
 
     def _compute_loss(self, batch, output, target):
