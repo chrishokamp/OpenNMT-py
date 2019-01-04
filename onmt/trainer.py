@@ -14,6 +14,7 @@ import random
 from collections import OrderedDict
 
 import onmt
+import torch
 import onmt.inputters as inputters
 import onmt.utils
 
@@ -247,6 +248,7 @@ class Trainer(object):
                                             % (self.gpu_rank, step))
                             valid_iter = valid_iter_fct()
                             valid_stats = self.validate(valid_iter, src_tgt)
+
                             if self.gpu_verbose_level > 0:
                                 logger.info('GpuRank %d: gather valid stat \
                                             step %d' % (self.gpu_rank, step))
@@ -310,7 +312,8 @@ class Trainer(object):
         # Set model in validating mode.
         self.model.eval()
 
-        stats = onmt.utils.Statistics()
+        with torch.no_grad():
+            stats = onmt.utils.Statistics()
 
         first_iter=True
         for batch in valid_iter:
@@ -336,8 +339,7 @@ class Trainer(object):
                 src_lengths = batch.src_lengths
             else:
                 src_lengths = None
-
-            tgt = inputters.make_features(batch, 'tgt')
+                tgt = inputters.make_features(batch, 'tgt')
 
             # TODO: decoder interface changed
             # F-prop through the model.
@@ -351,8 +353,8 @@ class Trainer(object):
                 self.valid_losses[batch.tgt_lang].monolithic_compute_loss(
                     batch, outputs, attns)
 
-            # Update statistics.
-            stats.update(batch_stats)
+                # Update statistics.
+                stats.update(batch_stats)
 
         # Set model back to training mode.
         self.model.train()

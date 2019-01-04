@@ -6,6 +6,7 @@
 import configargparse
 
 import os
+import glob
 import random
 import torch
 import torch.nn as nn
@@ -13,19 +14,15 @@ from torch.nn.init import xavier_uniform_
 
 import onmt.opts as opts
 
-from collections import defaultdict, OrderedDict
-
-from onmt.inputters.inputter import (build_dataset_iter, lazily_load_dataset,
-    _load_fields, _collect_report_features)
-from onmt.model_builder import (build_model, build_embeddings_then_encoder,
-    build_decoder_and_generator, build_attention_bridge)
-from onmt.inputters.inputter import build_dataset_iter, lazily_load_dataset, \
+from onmt.inputters.inputter import build_dataset_iter, \
     load_fields, _collect_report_features
 from onmt.model_builder import build_model
 from onmt.utils.optimizers import build_optim
 from onmt.trainer import build_trainer
 from onmt.models import build_model_saver
 from onmt.utils.logging import init_logger, logger
+
+from collections import OrderedDict
 
 
 def _check_save_model_path(opt):
@@ -235,7 +232,6 @@ def main(opt, device_id=None):
                 for p in generator.parameters():
                     if p.dim() > 1:
                         xavier_uniform_(p)
-
     n_params, enc, dec = _tally_parameters(model)
     logger.info('encoder: %d' % enc)
     logger.info('decoder: %d' % dec)
@@ -255,10 +251,6 @@ def main(opt, device_id=None):
         model_saver=model_saver)
 
     # Do training.
-    if len(opt.gpu_ranks):
-        logger.info('Starting training on GPU: %s' % opt.gpu_ranks)
-    else:
-        logger.info('Starting training on CPU, could be very slow')
     trainer.train(train_iter_fcts, valid_iter_fcts, opt.train_steps,
                   opt.valid_steps)
 
