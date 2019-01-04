@@ -531,7 +531,6 @@ def build_dataset_iter(corpus_type, fields, opt, is_train=True):
                            device, is_train)
 
 
-<<<<<<< HEAD
 def lazily_load_dataset(corpus_type, data_path):
     """
     Dataset generator. Don't do extra stuff here, like printing,
@@ -561,8 +560,6 @@ def lazily_load_dataset(corpus_type, data_path):
         yield _lazy_dataset_loader(pt, corpus_type)
 
 
-=======
->>>>>>> f240346274925743379b72c221a47208cc4bd1d0
 def load_fields(dataset, opt, checkpoint):
     if isinstance(dataset, TextDataset):
         data_type = 'text'
