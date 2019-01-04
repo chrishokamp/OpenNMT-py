@@ -353,8 +353,8 @@ class Trainer(object):
                 self.valid_losses[batch.tgt_lang].monolithic_compute_loss(
                     batch, outputs, attns)
 
-                # Update statistics.
-                stats.update(batch_stats)
+            # Update statistics.
+            stats.update(batch_stats)
 
         # Set model back to training mode.
         self.model.train()
