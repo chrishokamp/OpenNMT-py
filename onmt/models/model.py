@@ -79,6 +79,9 @@ class MultiTaskModel(nn.Module):
         src, src_lengths = src
         tgt, _ = tgt
 
+        # Note: this is not objectively right for sequence labeling tasks,
+        #  but in our implementation, the last token is EOS, so it shouldn't
+        #  matter.
         tgt = tgt[:-1]  # exclude last target from inputs
 
         encoder = self.encoders[self.encoder_ids[src_task]]
@@ -112,7 +115,7 @@ class MultiTaskModel(nn.Module):
         #            self.init_decoder))
 
         if self.init_decoder == 'attention_matrix' and self.bridge is not None:
-            # WORKING: this path is currently broken
+            # Note: this attention bridge code path is currently broken
             raise NotImplementedError
             self.bridge.init_decoder_state(src,
                                            memory_bank,

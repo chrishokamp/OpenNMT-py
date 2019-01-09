@@ -144,7 +144,7 @@ class TransformerEncoder(EncoderBase):
         w_batch, w_len = words.size()
         padding_idx = self.embeddings.word_padding_idx
         mask = words.data.eq(padding_idx).unsqueeze(1)  # [B, 1, T]
-        # Run the forward pass of every layer of the tranformer.
+        # Run the forward pass of every layer of the transformer.
         for i in range(self.num_layers):
             out = self.transformer[i](out, mask,
                                       mask_heads_after=self.mask_heads_after)
