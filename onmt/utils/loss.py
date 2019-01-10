@@ -256,7 +256,7 @@ class LossComputeBase(nn.Module):
         return new_view
 
     def _unbottle(self, _v, batch_size):
-        #print('unbottle: {}, batch size: {}'.format(_v.shape, batch_size))
+        # print('unbottle: {}, batch size: {}'.format(_v.shape, batch_size))
         return _v.view(-1, batch_size, _v.size(1))
 
 
@@ -299,18 +299,21 @@ class NMTLossCompute(LossComputeBase):
         super(NMTLossCompute, self).__init__(criterion, generator)
 
     def _make_shard_state(self, batch, output, range_, attns=None):
-        # TODO: this offset won't work for sequence labeling, we don't want to offset at all,
-        # TODO: we need to look at the batch type to know what to do
-        # TODO: Note there is also logic in the *Model class, which cuts off the
+        # NOTE: there is currently also logic in the *Model class, which cuts off the
         #  last sequence item.
         # NOTE: the offset is critical for the task type
-        # WORKING: the offset needs to be configurable by task
+        if batch.task_type == 'sequence_labeling':
+            # no offset -- note we now cut the _last_ item to match logic in *Model
+            target = batch.tgt[(range_[0]):(range_[1] - 1)]
+        else:
+            target = batch.tgt[(range_[0] + 1):range_[1]]
+
+        # print(f'output shape: {output.shape}')
+        # print(f'target shape: {target.shape}')
+
         return {
             "output": output,
-            # offset
-            "target": batch.tgt[(range_[0] + 1):range_[1]],
-            # no offset
-            # "target": batch.tgt[(range_[0]):range_[1]],
+            "target": target
         }
 
     def _compute_loss(self, batch, output, target):
@@ -318,8 +321,11 @@ class NMTLossCompute(LossComputeBase):
 
         scores = self.generator(bottled_output)
         gtruth = target.view(-1)
-
-        loss = self.criterion(scores, gtruth)
+        try:
+            loss = self.criterion(scores, gtruth)
+        except:
+            # WORKING: check where src and target don't match
+            import ipdb;ipdb.set_trace()
         stats = self._stats(loss.clone(), scores, gtruth, batch)
 
         return loss, stats
