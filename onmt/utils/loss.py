@@ -245,7 +245,6 @@ class LossComputeBase(nn.Module):
 
         # debug
         # ground_truth = [batch.fields['en_NER'].vocab.itos[v] for v in target]
-        # import ipdb;ipdb.set_trace()
 
         return onmt.utils.Statistics(loss.item(), num_non_padding, num_correct)
 
@@ -303,8 +302,7 @@ class NMTLossCompute(LossComputeBase):
         #  last sequence item.
         # NOTE: the offset is critical for the task type
         if batch.task_type == 'sequence_labeling':
-            # no offset -- note we now cut the _last_ item to match logic in *Model
-            target = batch.tgt[(range_[0]):(range_[1] - 1)]
+            target = batch.tgt[(range_[0]):range_[1]]
         else:
             target = batch.tgt[(range_[0] + 1):range_[1]]
 
@@ -321,11 +319,7 @@ class NMTLossCompute(LossComputeBase):
 
         scores = self.generator(bottled_output)
         gtruth = target.view(-1)
-        try:
-            loss = self.criterion(scores, gtruth)
-        except:
-            # WORKING: check where src and target don't match
-            import ipdb;ipdb.set_trace()
+        loss = self.criterion(scores, gtruth)
         stats = self._stats(loss.clone(), scores, gtruth, batch)
 
         return loss, stats
