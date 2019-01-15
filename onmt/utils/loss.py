@@ -221,6 +221,7 @@ class LossComputeBase(nn.Module):
         range_ = (cur_trunc, cur_trunc + trunc_size)
 
         shard_state = self._make_shard_state(batch, output, range_, attns)
+        import ipdb;ipdb.set_trace()
 
         for shard in shards(shard_state, shard_size):
             loss, stats = self._compute_loss(batch, **shard)
@@ -320,6 +321,7 @@ class NMTLossCompute(LossComputeBase):
         scores = self.generator(bottled_output)
         gtruth = target.view(-1)
         loss = self.criterion(scores, gtruth)
+        #import ipdb;ipdb.set_trace()
         stats = self._stats(loss.clone(), scores, gtruth, batch)
 
         return loss, stats
@@ -390,7 +392,11 @@ def shards(state, shard_size, eval_only=False):
             if isinstance(v, torch.Tensor) and state[k].requires_grad:
                 variables.extend(zip(torch.split(state[k], shard_size),
                                      [v_chunk.grad for v_chunk in v_split]))
-        inputs, grads = zip(*variables)
 
-        # Chris: backprop the shard grads wrt the original variables
-        torch.autograd.backward(inputs, grads)
+        # we're looking at output, but if no output variable requires
+        # grad, we'd get an error
+        # this happens when we're trying to train _only_ the generator
+        if len(variables) > 0:
+            inputs, grads = zip(*variables)
+            # Chris: backprop the shard grads wrt the original variables
+            torch.autograd.backward(inputs, grads)
