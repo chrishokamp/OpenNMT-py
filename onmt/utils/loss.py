@@ -299,8 +299,8 @@ class NMTLossCompute(LossComputeBase):
 
     def _make_shard_state(self, batch, output, range_, attns=None):
         # NOTE: there is currently also logic in the *Model class, which cuts off the
-        #  last sequence item.
-        # NOTE: the offset is critical for the task type
+        #  last sequence item of the input
+        # NOTE: the offset is critical -- must be correct for the task type
         if batch.task_type == 'sequence_labeling':
             target = batch.tgt[(range_[0]):range_[1]]
         else:
@@ -315,13 +315,42 @@ class NMTLossCompute(LossComputeBase):
         }
 
     def _compute_loss(self, batch, output, target):
+        # Note this method can operate on shards, not necessarily entire batches
         bottled_output = self._bottle(output)
+        # print(f'output shape: {output.shape}')
+        # print(f'target shape: {target.shape}')
 
+        #try:
+        #    scores = self.generator(bottled_output)
+        #except:
+        #    import ipdb;ipdb.set_trace()
         scores = self.generator(bottled_output)
+
         gtruth = target.view(-1)
         loss = self.criterion(scores, gtruth)
+
+        # IDEA: put predictions onto stats object?
         stats = self._stats(loss.clone(), scores, gtruth, batch)
 
+        timestep_scores = self._unbottle(scores, batch.batch_size)
+        timestep_argmaxes = torch.argmax(timestep_scores, dim=-1)
+        itos = batch.fields[batch.tgt_task].vocab.itos
+        timestep_preds = [[itos[idx] for idx in seq]
+                          for seq in timestep_argmaxes.transpose(1, 0)]
+
+        # import ipdb;ipdb.set_trace()
+        #for i, seq in enumerate(timestep_preds):
+        #    print(f'{i}: {seq}')
+        #    print(f'input {i}: {batch.source_inputs[batch.src_task][i]}')
+        #    try:
+        #        assert len(seq) >= len(batch.source_inputs[batch.src_task][i])
+        #    except:
+        #        print('Sources and targets are not aligned!')
+        #        import ipdb;ipdb.set_trace()
+
+
+        #target.transpose(1, 0)[7]
+        # print(list(zip(*output.transpose(1, 0)[:, 3, -10:])))
         return loss, stats
 
 

@@ -208,10 +208,22 @@ def build_generator(model_opt, decoder, vocab):
         else:
             gen_func = nn.LogSoftmax(dim=-1)
 
+        # Chris: experimenting with multiple generator layers
+        # TODO: multi-layer generator can cause some training tests to fail,
+        # TODO: not clear why
+        #generator = nn.Sequential(
+        #    nn.Linear(model_opt.dec_rnn_size, 256),
+        #    nn.LeakyReLU(),
+        #    nn.Linear(256, len(vocab)),
+        #    gen_func
+        #)
         generator = nn.Sequential(
-            nn.Linear(model_opt.dec_rnn_size, len(vocab)), gen_func
+            nn.Linear(model_opt.dec_rnn_size, len(vocab)),
+            gen_func
         )
+
         if model_opt.share_decoder_embeddings:
+            logger.info('Sharing generator output layer with decoder embeddings')
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
         generator = CopyGenerator(model_opt.dec_rnn_size, vocab)

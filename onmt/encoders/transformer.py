@@ -27,7 +27,7 @@ class TransformerEncoderLayer(nn.Module):
                  self_attn=None, cache_weights=False):
         super(TransformerEncoderLayer, self).__init__()
 
-        # Chris: note currently hard-coded information to cache
+        # Chris: note information to cache is currently hard-coded
         # if a self_attn wasn't provided, init one for this layer
         if self_attn is None:
             self.self_attn = onmt.modules.MultiHeadedAttention(
@@ -125,7 +125,8 @@ class TransformerEncoder(EncoderBase):
                 heads, d_model, dropout=dropout)
 
         self.transformer = nn.ModuleList(
-            [TransformerEncoderLayer(d_model, heads, d_ff, dropout)
+            [TransformerEncoderLayer(d_model, heads, d_ff, dropout,
+                                     cache_weights=True)
              for _ in range(num_layers)])
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
