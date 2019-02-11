@@ -59,8 +59,8 @@ def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True,
     #num_embs = [len(f.vocab) for _, f in text_field]
     #num_word_embeddings, num_feat_embeddings = num_embs[0], num_embs[1:]
 
-    fix_word_vecs = opt.fix_word_vecs_enc if for_encoder \
-        else opt.fix_word_vecs_dec
+    fix_word_vecs = getattr(opt, 'fix_word_vecs_enc', False) if for_encoder \
+        else getattr(opt, 'fix_word_vecs_dec', False)
 
     return Embeddings(
         word_vec_size=embedding_dim,
