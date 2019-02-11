@@ -61,9 +61,13 @@ def model_opts(parser):
     # Encoder-Decoder Options
     group = parser.add_argument_group('Model- Encoder-Decoder')
     group.add('--model_type', '-model_type', default='text',
+              choices=['text', 'img', 'audio'],
               help="""Type of source model to use. Allows
                        the system to incorporate non-text inputs.
                        Options are [text|img|audio].""")
+    group.add('--model_dtype', '-model_dtype', default='fp32',
+              choices=['fp32', 'fp16'],
+              help='Data type of the model.')
 
     group.add('--encoder_type', '-encoder_type', type=str, default='rnn',
               choices=['rnn', 'brnn', 'mean', 'transformer', 'cnn'],
@@ -137,6 +141,12 @@ def model_opts(parser):
               type=str, default="scaled-dot",
               help="""Self attention type in Transformer decoder
                        layer -- currently "scaled-dot" or "average" """)
+    group.add('--max_relative_positions', '-max_relative_positions',
+              type=int, default=0,
+              help="""Maximum distance between inputs in relative
+                      positions representations.
+                      For more detailed information, see:
+                      https://arxiv.org/pdf/1803.02155.pdf""")
     group.add('--heads', '-heads', type=int, default=8,
               help='Number of heads for transformer self-attention')
     group.add('--transformer_ff', '-transformer_ff', type=int, default=2048,
@@ -161,6 +171,9 @@ def model_opts(parser):
               help='Train a coverage attention layer.')
     group.add('--lambda_coverage', '-lambda_coverage', type=float, default=1,
               help='Lambda value for coverage.')
+    group.add('--loss_scale', '-loss_scale', type=float, default=0,
+              help="""For FP16 training, the static loss scale to use. If not
+                      set, the loss scale is dynamically computed.""")
 
     # neural_interlingua options
     group = parser.add_argument_group('Attention_bridge')
@@ -188,15 +201,15 @@ def preprocess_opts(parser):
     group = parser.add_argument_group('Data')
     group.add('--data_type', '-data_type', default="text",
               help="""Type of the source input.
-                       Options are [text|img].""")
+                       Options are [text|img|audio].""")
 
     group.add('--train_src', '-train_src', required=True,
               help="Path to the training source data")
     group.add('--train_tgt', '-train_tgt', required=True,
               help="Path to the training target data")
-    group.add('--valid_src', '-valid_src', required=True,
+    group.add('--valid_src', '-valid_src',
               help="Path to the validation source data")
-    group.add('--valid_tgt', '-valid_tgt', required=True,
+    group.add('--valid_tgt', '-valid_tgt',
               help="Path to the validation target data")
 
     group.add('--src_dir', '-src_dir', default="",
@@ -233,6 +246,9 @@ def preprocess_opts(parser):
               help="Size of the source vocabulary")
     group.add('--tgt_vocab_size', '-tgt_vocab_size', type=int, default=50000,
               help="Size of the target vocabulary")
+    group.add('--vocab_size_multiple', '-vocab_size_multiple',
+              type=int, default=1,
+              help="Make the vocabulary size a multiple of this value")
 
     group.add('--src_words_min_frequency',
               '-src_words_min_frequency', type=int, default=0)
@@ -249,12 +265,12 @@ def preprocess_opts(parser):
     group.add('--src_seq_length', '-src_seq_length', type=int, default=50,
               help="Maximum source sequence length")
     group.add('--src_seq_length_trunc', '-src_seq_length_trunc',
-              type=int, default=0,
+              type=int, default=None,
               help="Truncate source sequence length.")
     group.add('--tgt_seq_length', '-tgt_seq_length', type=int, default=50,
               help="Maximum target sequence length to keep.")
     group.add('--tgt_seq_length_trunc', '-tgt_seq_length_trunc',
-              type=int, default=0,
+              type=int, default=None,
               help="Truncate target sequence length.")
     group.add('--lower', '-lower', action='store_true', help='lowercase data')
     group.add('--filter_valid', '-filter_valid', action='store_true',
@@ -397,14 +413,16 @@ def train_opts(parser):
               type=int, default=32,
               help="""Maximum batches of words in a sequence to run
                         the generator on in parallel. Higher is faster, but
-                        uses more memory.""")
+                        uses more memory. Set to 0 to disable.""")
     group.add('--train_steps', '-train_steps', type=int, default=100000,
               help='Number of training steps')
+    group.add('--single_pass', '-single_pass', action='store_true',
+              help="Make a single pass over the training dataset.")
     group.add('--epochs', '-epochs', type=int, default=0,
               help='Deprecated epochs see train_steps')
     group.add('--optim', '-optim', default='sgd',
               choices=['sgd', 'adagrad', 'adadelta', 'adam',
-                       'sparseadam', 'adafactor'],
+                       'sparseadam', 'adafactor', 'fusedadam'],
               help="""Optimization method.""")
     group.add('--adagrad_accumulator_init', '-adagrad_accumulator_init',
               type=float, default=0,
@@ -445,6 +463,18 @@ def train_opts(parser):
                        Set to zero to turn off label smoothing.
                        For more detailed information, see:
                        https://arxiv.org/abs/1512.00567""")
+    group.add('--average_decay', '-average_decay', type=float, default=0,
+              help="""Moving average decay.
+                      Set to other than 0 (e.g. 1e-4) to activate.
+                      Similar to Marian NMT implementation:
+                      http://www.aclweb.org/anthology/P18-4020
+                      For more detail on Exponential Moving Average:
+                      https://en.wikipedia.org/wiki/Moving_average""")
+    group.add('--average_every', '-average_every', type=int, default=1,
+              help="""Step for moving average.
+                      Default is every update,
+                      if -average_decay is set.""")
+
     # learning rate
     group = parser.add_argument_group('Optimization- Rate')
     group.add('--learning_rate', '-learning_rate', type=float, default=1.0,
@@ -464,7 +494,8 @@ def train_opts(parser):
               help="""Decay every decay_steps""")
 
     group.add('--decay_method', '-decay_method', type=str, default="none",
-              choices=['noam', 'none'], help="Use a custom decay rate.")
+              choices=['noam', 'rsqrt', 'none'],
+              help="Use a custom decay rate.")
     group.add('--warmup_steps', '-warmup_steps', type=int, default=4000,
               help="""Number of warmup steps for custom decay.""")
 
@@ -485,8 +516,8 @@ def train_opts(parser):
     group.add('--tensorboard', '-tensorboard', action="store_true",
               help="""Use tensorboardX for visualization during training.
                        Must have the library tensorboardX.""")
-    group.add_argument("-tensorboard_log_dir", type=str,
-                       default="runs/onmt",
+    group.add_argument("--tensorboard_log_dir", "-tensorboard_log_dir",
+                       type=str, default="runs/onmt",
                        help="""Log directory for Tensorboard.
                        This is also the name of the run.
                        """)
@@ -528,6 +559,14 @@ def translate_opts(parser):
               help='Source directory for image or audio files')
     group.add('--tgt', '-tgt',
                        help='True target sequence (optional)')
+    group.add('--shard_size', '-shard_size', type=int, default=10000,
+              help="""Divide src and tgt (if applicable) into
+                       smaller multiple src and tgt files, then
+                       build shards, each shard will have
+                       opt.shard_size samples except last shard.
+                       shard_size=0 means no segmentation
+                       shard_size>0 means segment dataset into multiple shards,
+                       each shard has shard_size samples""")
     group.add('--output', '-output', default='pred.txt',
               help="""Path to output the predictions (each line will
                        be the decoded sequence""")
@@ -537,6 +576,8 @@ def translate_opts(parser):
     group.add('--report_rouge', '-report_rouge', action='store_true',
               help="""Report rouge 1/2/3/L/SU4 score after translation
                        call tools/test_rouge.py on command line""")
+    group.add('--report_time', '-report_time', action='store_true',
+              help="Report some translation time metrics")
 
     # Options most relevant to summarization.
     group.add('--dynamic_dict', '-dynamic_dict', action='store_true',
@@ -544,10 +585,22 @@ def translate_opts(parser):
     group.add('--share_vocab', '-share_vocab', action='store_true',
               help="Share source and target vocabulary")
 
+    group = parser.add_argument_group('Random Sampling')
+    group.add('--random_sampling_topk', '-random_sampling_topk',
+              default=1, type=int,
+              help="""Set this to -1 to do random sampling from full
+                      distribution. Set this to value k>1 to do random
+                      sampling restricted to the k most likely next tokens.
+                      Set this to 1 to use argmax or for doing beam
+                      search.""")
+    group.add('--random_sampling_temp', '-random_sampling_temp',
+              default=1., type=float,
+              help="""If doing random sampling, divide the logits by
+                       this before computing softmax during decoding.""")
+    group.add('--seed', '-seed', type=int, default=829,
+              help="Random seed")
+
     group = parser.add_argument_group('Beam')
-    group.add('--fast', '-fast', action="store_true",
-              help="""Use fast beam search (some features may not be
-                       supported!)""")
     group.add('--beam_size', '-beam_size', type=int, default=5,
               help='Beam size')
     group.add('--min_length', '-min_length', type=int, default=0,

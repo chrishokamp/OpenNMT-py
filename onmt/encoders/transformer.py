@@ -4,9 +4,8 @@ Implementation of "Attention is All You Need"
 
 import torch.nn as nn
 
-import onmt
 from onmt.encoders.encoder import EncoderBase
-# from onmt.utils.misc import aeq
+from onmt.modules import MultiHeadedAttention
 from onmt.modules.position_ffn import PositionwiseFeedForward
 
 
@@ -24,36 +23,34 @@ class TransformerEncoderLayer(nn.Module):
     """
 
     def __init__(self, d_model, heads, d_ff, dropout,
-                 self_attn=None, cache_weights=False):
+                 cache_weights=False,
+                 max_relative_positions=0):
         super(TransformerEncoderLayer, self).__init__()
 
         # Chris: note information to cache is currently hard-coded
         # if a self_attn wasn't provided, init one for this layer
-        if self_attn is None:
-            self.self_attn = onmt.modules.MultiHeadedAttention(
-                heads, d_model,
-                dropout=dropout,
-                information_to_cache=[
-                    'attn_weights',
-                    'attn_head_outputs',
-                    'attn_keys',
-                    'attn_values',
-                    'attn_queries'
-                ]
-            )
-        else:
-            self.self_attn = self_attn
+        self.self_attn = MultiHeadedAttention(
+            heads, d_model,
+            dropout=dropout,
+            information_to_cache=[
+                'attn_weights',
+                'attn_head_outputs',
+                'attn_keys',
+                'attn_values',
+                'attn_queries'
+            ],
+            max_relative_positions=max_relative_positions
+        )
 
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
         self.dropout = nn.Dropout(dropout)
+
         self.cache_weights = cache_weights
         self.cache = {}
 
     def forward(self, inputs, mask, mask_heads_after=None):
         """
-        Transformer Encoder Layer definition.
-
         Args:
             inputs (`FloatTensor`): `[batch_size x src_len x model_dim]`
             mask (`LongTensor`): `[batch_size x src_len x src_len]`
@@ -66,6 +63,7 @@ class TransformerEncoderLayer(nn.Module):
         input_norm = self.layer_norm(inputs)
         context, attn = self.self_attn(input_norm, input_norm, input_norm,
                                        mask=mask,
+                                       type='self',
                                        mask_heads_after=mask_heads_after)
 
         # attach attention weights to cache
@@ -109,23 +107,23 @@ class TransformerEncoder(EncoderBase):
     """
 
     def __init__(self, num_layers, d_model, heads, d_ff,
-                 dropout, embeddings,
+                 dropout, embeddings, max_relative_positions,
                  cache_weight_layers=None,
                  share_self_attn=False):
         super(TransformerEncoder, self).__init__()
 
-        self.num_layers = num_layers
         self.embeddings = embeddings
         if cache_weight_layers is None:
             cache_weight_layers = []
 
         self_attn = None
         if share_self_attn:
-            self_attn = onmt.modules.MultiHeadedAttention(
+            self_attn = MultiHeadedAttention(
                 heads, d_model, dropout=dropout)
 
         self.transformer = nn.ModuleList(
             [TransformerEncoderLayer(d_model, heads, d_ff, dropout,
+                                     max_relative_positions=max_relative_positions,
                                      cache_weights=True)
              for _ in range(num_layers)])
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
@@ -133,6 +131,18 @@ class TransformerEncoder(EncoderBase):
         # this can be set dynamically externally
         self.num_heads = heads
         self.mask_heads_after = None
+        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
+
+    @classmethod
+    def from_opt(cls, opt, embeddings):
+        return cls(
+            opt.enc_layers,
+            opt.enc_rnn_size,
+            opt.heads,
+            opt.transformer_ff,
+            opt.dropout,
+            embeddings,
+            opt.max_relative_positions)
 
     def forward(self, src, lengths=None):
         """ See :obj:`EncoderBase.forward()`"""

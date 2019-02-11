@@ -6,8 +6,8 @@
 import configargparse
 
 import os
-import glob
-import random
+from itertools import chain
+
 import torch
 import torch.nn as nn
 from torch.nn.init import xavier_uniform_
@@ -15,9 +15,10 @@ from torch.nn.init import xavier_uniform_
 import onmt.opts as opts
 
 from onmt.inputters.inputter import build_dataset_iter, \
-    load_fields, _collect_report_features
+    load_old_vocab, old_style_vocab
 from onmt.model_builder import build_model
-from onmt.utils.optimizers import build_optim
+from onmt.utils.optimizers import Optimizer
+from onmt.utils.misc import set_random_seed
 from onmt.trainer import build_trainer
 from onmt.models import build_model_saver
 from onmt.utils.logging import init_logger, logger
@@ -33,7 +34,6 @@ def _check_save_model_path(opt):
 
 
 def _tally_parameters(model):
-    n_params = sum([p.nelement() for p in model.parameters()])
     enc = 0
     dec = 0
     for name, param in model.named_parameters():
@@ -41,7 +41,7 @@ def _tally_parameters(model):
             enc += param.nelement()
         else:
             dec += param.nelement()
-    return n_params, enc, dec
+    return enc + dec, enc, dec
 
 
 def training_opt_postprocessing(opt, device_id):
@@ -72,20 +72,9 @@ def training_opt_postprocessing(opt, device_id):
         logger.info("WARNING: You have a CUDA device, \
                     should run with -gpu_ranks")
 
-    if opt.seed > 0:
-        torch.manual_seed(opt.seed)
-        # this one is needed for torchtext random call (shuffled iterator)
-        # in multi gpu it ensures datasets are read in the same order
-        random.seed(opt.seed)
-        # some cudnn methods can be random even after fixing the seed
-        # unless you tell it to be deterministic
-        torch.backends.cudnn.deterministic = True
-
     if device_id >= 0:
         torch.cuda.set_device(device_id)
-        if opt.seed > 0:
-            # These ensure same initialization in multi gpu mode
-            torch.cuda.manual_seed(opt.seed)
+    set_random_seed(opt.seed, device_id >= 0)
 
     return opt
 
@@ -119,9 +108,12 @@ def main(opt, device_id=None):
 
         model_opt = default_opt
         model_opt.__dict__.update(checkpoint['opt'].__dict__)
+        logger.info('Loading vocab from checkpoint at %s.' % opt.train_from)
+        vocab = checkpoint['vocab']
     else:
         checkpoint = None
         model_opt = opt
+        vocab = torch.load(opt.data + '.vocab.pt')
 
     # For each dataset, load fields generated from preprocess phase.
     train_iter_fcts = OrderedDict()
@@ -232,6 +224,7 @@ def main(opt, device_id=None):
                 for p in generator.parameters():
                     if p.dim() > 1:
                         xavier_uniform_(p)
+
     n_params, enc, dec = _tally_parameters(model)
     logger.info('encoder: %d' % enc)
     logger.info('decoder: %d' % dec)
@@ -241,7 +234,7 @@ def main(opt, device_id=None):
     _check_save_model_path(opt)
 
     # Build optimizer.
-    optim = build_optim(model, opt, checkpoint)
+    optim = Optimizer.from_opt(model, opt, checkpoint=checkpoint)
 
     # Build model saver
     model_saver = build_model_saver(model_opt, opt, model, fields, optim)

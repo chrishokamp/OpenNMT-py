@@ -135,7 +135,6 @@ class NMTModel(nn.Module):
     Args:
       encoder (:obj:`EncoderBase`): an encoder object
       decoder (:obj:`RNNDecoderBase`): a decoder object
-      multi<gpu (bool): setup for multigpu support
     """
 
     def __init__(self, encoder, decoder, model_opt):
@@ -147,7 +146,7 @@ class NMTModel(nn.Module):
                                                     model_opt.dec_layers) #, model_opt.dropout)
         self.decoder = decoder
 
-    def forward(self, src, tgt, lengths):
+    def forward(self, src, tgt, lengths, bptt=False):
         """Forward propagate a `src` and `tgt` pair for training.
         Possible initialized with a beginning decoder state.
 
@@ -160,6 +159,9 @@ class NMTModel(nn.Module):
             tgt (:obj:`LongTensor`):
                  a target sequence of size `[tgt_len x batch]`.
             lengths(:obj:`LongTensor`): the src lengths, pre-padding `[batch]`.
+            bptt (:obj:`Boolean`):
+                a flag indicating if truncated bptt is set. If reset then
+                init_state
 
         Returns:
             (:obj:`FloatTensor`, `dict`, :obj:`onmt.Models.DecoderState`):
@@ -170,6 +172,9 @@ class NMTModel(nn.Module):
         tgt = tgt[:-1]  # exclude last target from inputs
 
         enc_state, memory_bank, lengths = self.encoder(src, lengths)
+        if bptt is False:
+            self.decoder.init_state(src, memory_bank, enc_state)
+
         self.decoder.init_state(src, memory_bank, enc_state)
         # Implement attention bridge/compound attention
         if self.use_attention_bridge:
@@ -177,5 +182,4 @@ class NMTModel(nn.Module):
 
         dec_out, attns = self.decoder(tgt, memory_bank,
                                       memory_lengths=lengths)
-
         return dec_out, attns

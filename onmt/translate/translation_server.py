@@ -14,6 +14,7 @@ import torch
 import onmt.opts
 
 from onmt.utils.logging import init_logger
+from onmt.utils.misc import set_random_seed
 from onmt.translate.translator import build_translator
 
 
@@ -25,7 +26,11 @@ def critical(func):
         if not server_model.running_lock.acquire(blocking=True, timeout=120):
             raise ServerModelError("Model %d running lock timeout"
                                    % server_model.model_id)
-        o = func(server_model, *args, **kwargs)
+        try:
+            o = func(server_model, *args, **kwargs)
+        except (Exception, RuntimeError):
+            server_model.running_lock.release()
+            raise
         server_model.running_lock.release()
         return o
     return wrapper
@@ -207,6 +212,8 @@ class ServerModel:
         self.loading_lock = threading.Event()
         self.loading_lock.set()
         self.running_lock = threading.Semaphore(value=1)
+
+        set_random_seed(self.opt.seed, self.opt.cuda)
 
         if load:
             self.load()

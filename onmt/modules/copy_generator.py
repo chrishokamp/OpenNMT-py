@@ -1,9 +1,37 @@
 import torch
 import torch.nn as nn
 
-import onmt.inputters as inputters
 from onmt.utils.misc import aeq
 from onmt.utils.loss import LossComputeBase
+
+
+def collapse_copy_scores(scores, batch, tgt_vocab, src_vocabs,
+                         batch_dim=1, batch_offset=None):
+    """
+    Given scores from an expanded dictionary
+    corresponeding to a batch, sums together copies,
+    with a dictionary word when it is ambiguous.
+    """
+    offset = len(tgt_vocab)
+    for b in range(scores.size(batch_dim)):
+        blank = []
+        fill = []
+        batch_id = batch_offset[b] if batch_offset is not None else b
+        index = batch.indices.data[batch_id]
+        src_vocab = src_vocabs[index]
+        for i in range(1, len(src_vocab)):
+            sw = src_vocab.itos[i]
+            ti = tgt_vocab.stoi[sw]
+            if ti != 0:
+                blank.append(offset + i)
+                fill.append(ti)
+        if blank:
+            blank = torch.Tensor(blank).type_as(batch.indices.data)
+            fill = torch.Tensor(fill).type_as(batch.indices.data)
+            score = scores[:, b] if batch_dim == 1 else scores[b]
+            score.index_add_(1, fill, score.index_select(1, blank))
+            score.index_fill_(1, blank, 1e-10)
+    return scores
 
 
 class CopyGenerator(nn.Module):
@@ -111,6 +139,8 @@ class CopyGeneratorLoss(nn.Module):
     def forward(self, scores, align, target):
         """
         scores (FloatTensor): (batch_size*tgt_len) x dynamic vocab size
+            whose sum along dim 1 is less than or equal to 1, i.e. cols
+            softmaxed.
         align (LongTensor): (batch_size*tgt_len)
         target (LongTensor): (batch_size*tgt_len)
         """
@@ -157,7 +187,7 @@ class CopyGeneratorLossCompute(LossComputeBase):
 
         return {
             "output": output,
-            "target": batch.tgt[range_[0] + 1: range_[1]],
+            "target": batch.tgt[range_[0] + 1: range_[1], :, 0],
             "copy_attn": attns.get("copy"),
             "align": batch.alignment[range_[0] + 1: range_[1]]
         }
@@ -181,7 +211,7 @@ class CopyGeneratorLossCompute(LossComputeBase):
 
         # this block does not depend on the loss value computed above
         # and is used only for stats
-        scores_data = inputters.TextDataset.collapse_copy_scores(
+        scores_data = collapse_copy_scores(
             self._unbottle(scores.clone(), batch.batch_size),
             batch, self.tgt_vocab, batch.dataset.src_vocabs)
         scores_data = self._bottle(scores_data)
@@ -203,7 +233,7 @@ class CopyGeneratorLossCompute(LossComputeBase):
         # this part looks like it belongs in CopyGeneratorLoss
         if self.normalize_by_length:
             # Compute Loss as NLL divided by seq length
-            tgt_lens = batch.tgt.ne(self.padding_idx).sum(0).float()
+            tgt_lens = batch.tgt[:, :, 0].ne(self.padding_idx).sum(0).float()
             # Compute Total Loss per sequence in batch
             loss = loss.view(-1, batch.batch_size).sum(0)
             # Divide by length of each sequence and sum

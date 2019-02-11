@@ -9,6 +9,8 @@ import numpy
 #from torchsparseattn.fused import Fusedmax
 #from torchsparseattn.sparsemax import Sparsemax
 
+from onmt.utils.misc import generate_relative_positions_matrix,\
+                            relative_matmul
 # from onmt.utils.misc import aeq
 
 
@@ -59,7 +61,8 @@ class MultiHeadedAttention(nn.Module):
     # CHRIS: that should be returned in addition to the actual attn output
     def __init__(self, head_count, model_dim,
                  information_to_cache=None,
-                 dropout=0.1):
+                 dropout=0.1,
+                 max_relative_positions=0):
         assert model_dim % head_count == 0
         self.dim_per_head = model_dim // head_count
         self.model_dim = model_dim
@@ -83,6 +86,13 @@ class MultiHeadedAttention(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.final_linear = nn.Linear(model_dim, model_dim)
+
+        self.max_relative_positions = max_relative_positions
+
+        if max_relative_positions > 0:
+            vocab_size = max_relative_positions * 2 + 1
+            self.relative_positions_embeddings = nn.Embedding(
+                vocab_size, self.dim_per_head)
 
     def forward(self, key, value, query, mask=None,
                 layer_cache=None, type=None, mask_heads_after=None):
@@ -127,6 +137,7 @@ class MultiHeadedAttention(nn.Module):
         head_count = self.head_count
         key_len = key.size(1)
         query_len = query.size(1)
+        device = key.device
 
         def shape(x):
             """  projection """
@@ -148,7 +159,6 @@ class MultiHeadedAttention(nn.Module):
                                     self.linear_values(query)
                 key = shape(key)
                 value = shape(value)
-                device = key.device
                 if layer_cache["self_keys"] is not None:
                     key = torch.cat(
                         (layer_cache["self_keys"].to(device), key),
@@ -178,6 +188,19 @@ class MultiHeadedAttention(nn.Module):
             key = shape(key)
             value = shape(value)
 
+        if self.max_relative_positions > 0 and type == "self":
+            key_len = key.size(2)
+            # 1 or key_len x key_len
+            relative_positions_matrix = generate_relative_positions_matrix(
+                key_len, self.max_relative_positions,
+                cache=True if layer_cache is not None else False)
+            #  1 or key_len x key_len x dim_per_head
+            relations_keys = self.relative_positions_embeddings(
+                relative_positions_matrix.to(device))
+            #  1 or key_len x key_len x dim_per_head
+            relations_values = self.relative_positions_embeddings(
+                relative_positions_matrix.to(device))
+
         query = shape(query)
 
         key_len = key.size(2)
@@ -198,6 +221,11 @@ class MultiHeadedAttention(nn.Module):
 
         # unnormalized attention (pre-softmax)
         scores = torch.matmul(query, key.transpose(2, 3))
+
+        if self.max_relative_positions > 0 and type == "self":
+            scores = scores + relative_matmul(scores, relations_keys, True)
+
+        scores = scores.float()
 
         if mask is not None:
             mask = mask.unsqueeze(1)  # [B, 1, 1, T_values]
@@ -231,7 +259,14 @@ class MultiHeadedAttention(nn.Module):
         if 'attn_head_outputs' in self.information_to_cache:
             attn_cache['attn_head_outputs'] = head_outputs
 
-        context = unshape(head_outputs)
+        context_original = torch.matmul(drop_attn, value)
+        if self.max_relative_positions > 0 and type == "self":
+            context = unshape(context_original
+                              + relative_matmul(drop_attn,
+                                                relations_values,
+                                                False))
+        else:
+            context = unshape(context_original)
 
         output = self.final_linear(context)
         # CHECK

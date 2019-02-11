@@ -3,10 +3,10 @@ import dill
 import torch
 import torch.nn as nn
 
-import onmt.inputters
-
 from collections import deque
 from onmt.utils.logging import logger
+
+from copy import deepcopy
 
 
 def build_model_saver(model_opt, opt, model, fields, optim):
@@ -15,7 +15,6 @@ def build_model_saver(model_opt, opt, model, fields, optim):
                              model_opt,
                              fields,
                              optim,
-                             opt.save_checkpoint_steps,
                              opt.keep_checkpoint)
     return model_saver
 
@@ -28,32 +27,40 @@ class ModelSaverBase(object):
             * `_rm_checkpoint
     """
 
-    def __init__(self, base_path, model, model_opt, fields, optim,
-                 save_checkpoint_steps, keep_checkpoint=-1):
+    def __init__(self, base_path, model, model_opt, fields,
+                 optim=None,
+                 keep_checkpoint=-1):
         self.base_path = base_path
         self.model = model
         self.model_opt = model_opt
         self.fields = fields
         self.optim = optim
+        self.last_saved_step = None
         self.keep_checkpoint = keep_checkpoint
-        self.save_checkpoint_steps = save_checkpoint_steps
-
         if keep_checkpoint > 0:
             self.checkpoint_queue = deque([], maxlen=keep_checkpoint)
 
-    def maybe_save(self, step):
+    def save(self, step, moving_average=None):
         """
         Main entry point for model saver
         It wraps the `_save` method with checks and apply `keep_checkpoint`
         related logic
         """
-        if self.keep_checkpoint == 0:
+        if self.keep_checkpoint == 0 or step == self.last_saved_step:
             return
 
-        if step % self.save_checkpoint_steps != 0:
-            return
+        if moving_average:
+            save_model = deepcopy(self.model)
+            for avg, param in zip(moving_average, save_model.parameters()):
+                param.data.copy_(avg.data)
+        else:
+            save_model = self.model
 
-        chkpt, chkpt_name = self._save(step)
+        chkpt, chkpt_name = self._save(step, save_model)
+        self.last_saved_step = step
+
+        if moving_average:
+            del save_model
 
         if self.keep_checkpoint > 0:
             if len(self.checkpoint_queue) == self.checkpoint_queue.maxlen:
@@ -92,17 +99,10 @@ class ModelSaver(ModelSaverBase):
         https://pytorch.org/tutorials/beginner/saving_loading_models.html
 
     """
-
-    def __init__(self, base_path, model, fields, save_checkpoint_steps,
-                 model_opt=None, optim=None, keep_checkpoint=-1):
-        super(ModelSaver, self).__init__(
-            base_path, model, model_opt, fields, optim,
-            save_checkpoint_steps, keep_checkpoint)
-
-    def create_checkpoint(self):
-        real_model = (self.model.module
-                      if isinstance(self.model, nn.DataParallel)
-                      else self.model)
+    def create_checkpoint(self, model):
+        real_model = (model.module
+                      if isinstance(model, nn.DataParallel)
+                      else model)
 
         #real_generators = (real_model.generators.module
         #                   if isinstance(real_model.generator, nn.DataParallel)
@@ -122,10 +122,10 @@ class ModelSaver(ModelSaverBase):
 
         return checkpoint
 
-    def _save(self, step):
+    def _save(self, step, model_to_save):
         logger.info("Saving checkpoint %s_step_%d.pt" % (self.base_path, step))
         checkpoint_path = '%s_step_%d.pt' % (self.base_path, step)
-        checkpoint = self.create_checkpoint()
+        checkpoint = self.create_checkpoint(model_to_save)
 
         torch.save(checkpoint, checkpoint_path, pickle_module=dill)
         return checkpoint, checkpoint_path
