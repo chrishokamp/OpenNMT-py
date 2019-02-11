@@ -112,6 +112,7 @@ class TransformerEncoder(EncoderBase):
                  share_self_attn=False):
         super(TransformerEncoder, self).__init__()
 
+        self.num_layers = num_layers
         self.embeddings = embeddings
         if cache_weight_layers is None:
             cache_weight_layers = []

@@ -148,6 +148,7 @@ class TransformerDecoder(DecoderBase):
                  cache_weight_layers=None):
         super(TransformerDecoder, self).__init__()
 
+        self.num_layers = num_layers
         self.embeddings = embeddings
 
         if cache_weight_layers is None:

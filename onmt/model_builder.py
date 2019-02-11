@@ -94,6 +94,7 @@ def build_encoder(opt, embeddings):
             opt.transformer_ff,
             opt.dropout,
             embeddings,
+            max_relative_positions=getattr(opt, 'max_relative_positions', 0),
             cache_weight_layers=getattr(opt, 'enc_cache_weight_layers', None),
             share_self_attn=getattr(opt, 'enc_share_self_attn', False))
     elif opt.encoder_type == "cnn":
@@ -139,6 +140,7 @@ def build_decoder(opt, embeddings):
             opt.self_attn_type,
             opt.dropout,
             embeddings,
+            max_relative_positions=getattr(opt, 'max_relative_positions', 0),
             cache_weight_layers=getattr(opt, 'dec_cache_weight_layers', None))
     elif opt.decoder_type == "cnn":
         decoder = CNNDecoder(
