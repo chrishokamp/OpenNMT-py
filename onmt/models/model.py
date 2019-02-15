@@ -80,8 +80,8 @@ class MultiTaskModel(nn.Module):
         tgt, _ = tgt
 
         # Note: this is not objectively right for sequence labeling tasks,
-        #  but in our implementation, the last token is EOS, so it shouldn't
-        #  matter.
+        #  but in our implementation, the last token is always EOS,
+        # so it shouldn't matter.
         tgt = tgt[:-1]  # exclude last target from inputs
 
         encoder = self.encoders[self.encoder_ids[src_task]]

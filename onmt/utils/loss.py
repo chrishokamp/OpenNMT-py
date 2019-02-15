@@ -287,13 +287,10 @@ class NMTLossCompute(LossComputeBase):
         # NOTE: there is currently also logic in the *Model class, which cuts off the
         #  last sequence item of the input
         # NOTE: the offset is critical -- must be correct for the task type
-        if batch.task_type == 'sequence_labeling':
+        if batch.task_type == 'sequence_labeling' or batch.task_type == 'slot_filling':
             target = batch.tgt[(range_[0]):range_[1]]
         else:
             target = batch.tgt[(range_[0] + 1):range_[1]]
-
-        # print(f'output shape: {output.shape}')
-        # print(f'target shape: {target.shape}')
 
         return {
             "output": output,
