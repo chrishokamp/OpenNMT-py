@@ -256,7 +256,10 @@ def build_generator(model_opt, decoder, vocab):
 
         if model_opt.share_decoder_embeddings:
             logger.info('Sharing generator output layer with decoder embeddings')
-            generator[0].weight = decoder.embeddings.word_lut.weight
+            try:
+                generator[0].weight = decoder.embeddings.word_lut.weight
+            except AttributeError:
+                logger.error('Cannot share embeddings between generator and decoder because decoder does not have embeddings')
     else:
         generator = CopyGenerator(model_opt.dec_rnn_size, vocab)
 
