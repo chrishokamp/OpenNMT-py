@@ -131,4 +131,8 @@ class ModelSaver(ModelSaverBase):
         return checkpoint, checkpoint_path
 
     def _rm_checkpoint(self, name):
-        os.remove(name)
+        try:
+            os.remove(name)
+        except:
+            logger.error(f'Error removing: {name}')
+
