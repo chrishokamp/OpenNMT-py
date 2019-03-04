@@ -116,6 +116,11 @@ class ModelSaver(ModelSaverBase):
         checkpoint = {
             'field_vocabs': self.fields,
             'model_opt': self.model_opt,
+            'model_component_maps': {
+                'encoders': model.encoder_ids,
+                'decoders': model.decoder_ids,
+                'generators': model.generator_ids,
+            },
             'optim': self.optim,
             'model_state_dict': model_state_dict
         }
