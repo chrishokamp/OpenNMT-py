@@ -27,6 +27,7 @@ from onmt.modules import Embeddings, CopyGenerator
 from onmt.modules.util_class import Cast
 from onmt.utils.misc import use_gpu
 from onmt.utils.logging import logger
+from onmt.utils.parse import ArgumentParser
 
 
 def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True,
@@ -186,13 +187,15 @@ def load_test_multitask_model(opt, model_path=None):
     return model
 
 
-def load_test_model(opt, dummy_opt, model_path=None):
+def load_test_model(opt, model_path=None):
     if model_path is None:
         model_path = opt.models[0]
     checkpoint = torch.load(model_path,
                             map_location=lambda storage, loc: storage)
 
-    model_opt = checkpoint['opt']
+    model_opt = ArgumentParser.ckpt_model_opts(checkpoint['opt'])
+    ArgumentParser.update_model_opts(model_opt)
+    ArgumentParser.validate_model_opts(model_opt)
     vocab = checkpoint['vocab']
     if inputters.old_style_vocab(vocab):
         fields = inputters.load_old_vocab(
@@ -201,10 +204,10 @@ def load_test_model(opt, dummy_opt, model_path=None):
     else:
         fields = vocab
 
-    for arg in dummy_opt:
-        if arg not in model_opt:
-            model_opt.__dict__[arg] = dummy_opt[arg]
-    model = build_base_model(model_opt, fields, use_gpu(opt), checkpoint)
+    model = build_base_model(model_opt, fields, use_gpu(opt), checkpoint,
+                             opt.gpu)
+    if opt.fp32:
+        model.float()
     model.eval()
     model.generator.eval()
     return fields, model, model_opt
@@ -293,12 +296,18 @@ def build_attention_bridge(model_opt):
 
 def build_base_model(model_opt, fields, gpu, checkpoint=None):
     """
+
     Args:
-        model_opt: the option loaded from checkpoint.
-        fields: `Field` objects for the model.
-        gpu(bool): whether to use gpu.
+        model_opt: the option loaded from checkpoint. It's important that
+            the opts have been updated and validated. See
+            :class:`onmt.utils.parse.ArgumentParser`.
+        fields (dict[str, torchtext.data.Field]):
+            `Field` objects for the model.
+        gpu (bool): whether to use gpu.
         checkpoint: the model gnerated by train phase, or a resumed snapshot
                     model from a stopped training.
+        gpu_id (int or NoneType): Which GPU to use.
+
     Returns:
         the NMTModel.
     """
@@ -313,9 +322,7 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None):
 
     # Build embeddings.
     if model_opt.model_type == "text":
-        src_fields = [f for n, f in fields['src']]
-        assert len(src_fields) == 1
-        src_field = src_fields[0]
+        src_field = fields["src"]
         src_emb = build_embeddings(model_opt, src_field)
     else:
         src_emb = None
@@ -324,11 +331,8 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None):
     encoder = build_encoder(model_opt, src_emb)
 
     # Build decoder.
-    tgt_fields = [f for n, f in fields['tgt']]
-    assert len(tgt_fields) == 1
-    tgt_field = tgt_fields[0]
-    tgt_emb = build_embeddings(
-        model_opt, tgt_field, for_encoder=False)
+    tgt_field = fields["tgt"]
+    tgt_emb = build_embeddings(model_opt, tgt_field, for_encoder=False)
 
     # Share the embedding matrix - preprocess with share_vocab required.
     if model_opt.share_embeddings:
@@ -355,15 +359,14 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None):
             gen_func = nn.LogSoftmax(dim=-1)
         generator = nn.Sequential(
             nn.Linear(model_opt.dec_rnn_size,
-                      len(fields["tgt"][0][1].base_field.vocab)),
+                      len(fields["tgt"].base_field.vocab)),
             Cast(torch.float32),
             gen_func
         )
         if model_opt.share_decoder_embeddings:
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
-        assert len(fields["tgt"]) == 1
-        tgt_base_field = fields["tgt"][0][1].base_field
+        tgt_base_field = fields["tgt"].base_field
         vocab_size = len(tgt_base_field.vocab)
         pad_idx = tgt_base_field.vocab.stoi[tgt_base_field.pad_token]
         generator = CopyGenerator(model_opt.dec_rnn_size, vocab_size, pad_idx)
@@ -432,8 +435,6 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None):
     model.generator = generator
     model.to(device)
     if model_opt.model_dtype == 'fp16':
-        logger.warning('FP16 is experimental, the generated checkpoints may '
-                       'be incompatible with a future version')
         model.half()
 
     return model

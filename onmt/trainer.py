@@ -17,6 +17,7 @@ import onmt
 from copy import deepcopy
 import itertools
 import torch
+import traceback
 
 from onmt.utils.loss import build_loss_from_generator_and_vocab
 
@@ -67,7 +68,8 @@ def build_trainer(opt, model, fields, optim, data_type,
     trunc_size = opt.truncated_decoder  # Badly named...
     shard_size = opt.max_generator_batches
     norm_method = opt.normalization
-    grad_accum_count = opt.accum_count
+    accum_count = opt.accum_count
+    accum_steps = opt.accum_steps
     n_gpu = opt.world_size
     average_decay = opt.average_decay
     average_every = opt.average_every
@@ -79,15 +81,22 @@ def build_trainer(opt, model, fields, optim, data_type,
     gpu_verbose_level = opt.gpu_verbose_level
     report_bleu=opt.report_bleu
 
+    earlystopper = onmt.utils.EarlyStopping(
+        opt.early_stopping, scorers=onmt.utils.scorers_from_opts(opt)) \
+        if opt.early_stopping > 0 else None
+
     report_manager = onmt.utils.build_report_manager(opt)
 
     trainer = onmt.Trainer(model, train_losses, valid_losses, optim, trunc_size,
                            shard_size, norm_method,
-                           grad_accum_count, n_gpu, gpu_rank,
+                           accum_count, accum_steps,
+                           n_gpu, gpu_rank,
                            gpu_verbose_level, report_manager,
                            model_saver=model_saver if gpu_rank == 0 else None,
                            average_decay=average_decay,
-                           average_every=average_every)
+                           average_every=average_every,
+                           model_dtype=opt.model_dtype,
+                           earlystopper=earlystopper)
     return trainer
 
 
@@ -108,7 +117,8 @@ class Trainer(object):
             shard_size(int): compute loss in shards of this size for efficiency
             data_type(string): type of the source input: [text|img|audio]
             norm_method(string): normalization methods: [sents|tokens]
-            grad_accum_count(int): accumulate gradients this many times.
+            accum_count(list): accumulate gradients this many times.
+            accum_steps(list): steps for accum gradients changes.
             report_manager(:obj:`onmt.utils.ReportMgrBase`):
                 the object that creates reports, or None
             model_saver(:obj:`onmt.models.ModelSaverBase`): the saver is
@@ -130,7 +140,9 @@ class Trainer(object):
         self.trunc_size = trunc_size
         self.shard_size = shard_size
         self.norm_method = norm_method
-        self.grad_accum_count = grad_accum_count
+        self.accum_count_l = accum_count
+        self.accum_count = accum_count[0]
+        self.accum_steps = accum_steps
         self.n_gpu = n_gpu
         self.gpu_rank = gpu_rank
         self.gpu_verbose_level = gpu_verbose_level
@@ -142,12 +154,15 @@ class Trainer(object):
         self.average_decay = average_decay
         self.moving_average = None
         self.average_every = average_every
+        self.model_dtype = model_dtype
+        self.earlystopper = earlystopper
 
-        assert grad_accum_count > 0
-        if grad_accum_count > 1:
-            assert self.trunc_size == 0, \
-                """To enable accumulated gradients,
-                   you must disable target sequence truncating."""
+        for i in range(len(self.accum_count_l)):
+            assert self.accum_count_l[i] > 0
+            if self.accum_count_l[i] > 1:
+                assert self.trunc_size == 0, \
+                    """To enable accumulated gradients,
+                       you must disable target sequence truncating."""
 
         # Set model in training mode.
         self.model.train()

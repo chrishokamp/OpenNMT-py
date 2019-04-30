@@ -14,25 +14,26 @@ class TranslationBuilder(object):
     Problem in Neural Machine Translation" :cite:`Luong2015b`
 
     Args:
-       data (DataSet):
-       fields (dict of Fields): data fields
+       data (onmt.inputters.Dataset): Data.
+       fields (List[Tuple[str, torchtext.data.Field]]): data fields
        n_best (int): number of translations produced
        replace_unk (bool): replace unknown words using attention
        has_tgt (bool): will the batch have gold targets
     """
 
     def __init__(self, data, fields, n_best=1, replace_unk=False,
-                 has_tgt=False):
+                 has_tgt=False, phrase_table=""):
         self.data = data
         self.fields = fields
         self._has_text_src = isinstance(
-            self.fields["src"][0][1], TextMultiField)
+            dict(self.fields)["src"], TextMultiField)
         self.n_best = n_best
         self.replace_unk = replace_unk
+        self.phrase_table = phrase_table
         self.has_tgt = has_tgt
 
     def _build_target_tokens(self, src, src_vocab, src_raw, pred, attn):
-        tgt_field = self.fields["tgt"][0][1].base_field
+        tgt_field = dict(self.fields)["tgt"].base_field
         vocab = tgt_field.vocab
         tokens = []
         for tok in pred:
@@ -48,6 +49,11 @@ class TranslationBuilder(object):
                 if tokens[i] == tgt_field.unk_token:
                     _, max_index = attn[i].max(0)
                     tokens[i] = src_raw[max_index.item()]
+                    if self.phrase_table != "":
+                        with open(self.phrase_table, "r") as f:
+                            for line in f:
+                                if line.startswith(src_raw[max_index.item()]):
+                                    tokens[i] = line.split('|||')[1].strip()
         return tokens
 
     def from_batch(self, translation_batch):
@@ -105,19 +111,17 @@ class TranslationBuilder(object):
 
 
 class Translation(object):
-    """
-    Container for a translated sentence.
+    """Container for a translated sentence.
 
     Attributes:
-        src (`LongTensor`): src word ids
-        src_raw ([str]): raw src words
-
-        pred_sents ([[str]]): words from the n-best translations
-        pred_scores ([[float]]): log-probs of n-best translations
-        attns ([`FloatTensor`]) : attention dist for each translation
-        gold_sent ([str]): words from gold translation
-        gold_score ([float]): log-prob of gold translation
-
+        src (LongTensor): Source word IDs.
+        src_raw (List[str]): Raw source words.
+        pred_sents (List[List[str]]): Words from the n-best translations.
+        pred_scores (List[List[float]]): Log-probs of n-best translations.
+        attns (List[FloatTensor]) : Attention distribution for each
+            translation.
+        gold_sent (List[str]): Words from gold translation.
+        gold_score (List[float]): Log-prob of gold translation.
     """
 
     __slots__ = ["src", "src_raw", "pred_sents", "attns", "pred_scores",
