@@ -194,11 +194,6 @@ def model_opts(parser):
                        Must choose attention_matrix if -encoder_type transformer
                        Must chose rnn_final state if -use_attention_bridge is NOT activated """)
 
-    # Option most relevant to image input
-    group.add_argument('-image_channel_size', type=int, default=3,
-                       choices=[3, 1],
-                       help="""Using grayscale image can training
-                       model faster and smaller""")
 
 def preprocess_opts(parser):
     """ Pre-procesing options """
