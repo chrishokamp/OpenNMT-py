@@ -128,10 +128,15 @@ class Trainer(object):
 
     def __init__(self, model, train_losses, valid_losses, optim,
                  trunc_size=0, shard_size=32, data_type='text',
-                 norm_method="sents", grad_accum_count=1, n_gpu=1, gpu_rank=1,
+                 norm_method="sents",
+                 accum_count=1,
+                 n_gpu=1,
+                 gpu_rank=1,
                  gpu_verbose_level=0, report_manager=None, report_bleu=None,
                  use_attention_bridge=False, model_saver=None,
-                 average_decay=0, average_every=1):
+                 average_decay=0, average_every=1,
+                 model_dtype='fp32',
+                 earlystopper=0):
         # Basic attributes.
         self.model = model
         self.train_losses = train_losses
@@ -140,9 +145,10 @@ class Trainer(object):
         self.trunc_size = trunc_size
         self.shard_size = shard_size
         self.norm_method = norm_method
-        self.accum_count_l = accum_count
-        self.accum_count = accum_count[0]
-        self.accum_steps = accum_steps
+        self.accum_count_l = [accum_count]
+        self.accum_count = accum_count
+        # Note hard-coded accum_steps
+        self.accum_steps = [0]
         self.n_gpu = n_gpu
         self.gpu_rank = gpu_rank
         self.gpu_verbose_level = gpu_verbose_level
@@ -150,7 +156,7 @@ class Trainer(object):
         self.model_saver = model_saver
         self.report_bleu = report_bleu
         self.use_attention_bridge = use_attention_bridge
-        self.last_model  = None
+        self.last_model = None
         self.average_decay = average_decay
         self.moving_average = None
         self.average_every = average_every
