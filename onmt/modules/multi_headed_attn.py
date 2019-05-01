@@ -216,13 +216,18 @@ class MultiHeadedAttention(nn.Module):
         # Chris: why do they scale the query? -- it's to constrain the softmax range to keep gradient
         # Chris: section 3.2.1 of attention is all you need https://arxiv.org/pdf/1706.03762.pdf
         query = query / math.sqrt(dim_per_head)
+        # batch x num_heads x query_len x key_len
+        query_key = torch.matmul(query, key.transpose(2, 3))
 
         # unnormalized attention (pre-softmax)
         scores = torch.matmul(query, key.transpose(2, 3))
 
         if self.max_relative_positions > 0 and type == "self":
-            scores = scores + relative_matmul(scores, relations_keys, True)
+            scores = query_key + relative_matmul(query, relations_keys, True)
+        else:
+            scores = query_key
 
+        # Chris: don't know/can't remember whh we had this cast, but could break fp16 training
         scores = scores.float()
 
         if mask is not None:
@@ -238,7 +243,7 @@ class MultiHeadedAttention(nn.Module):
         #attn = attn.cuda()
         #attn = attn.view(*scores.shape)
 
-        attn = self.softmax(scores)
+        attn = self.softmax(scores).to(query.dtype)
 
         if mask_heads_after is not None:
             #head_mask = torch.ones(scores.shape)
