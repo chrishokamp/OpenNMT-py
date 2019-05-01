@@ -250,10 +250,12 @@ def build_generator(model_opt, decoder, vocab):
         #    nn.Linear(model_opt.dec_rnn_size, 256),
         #    nn.LeakyReLU(),
         #    nn.Linear(256, len(vocab)),
+        #    Cast(torch.float32),
         #    gen_func
         #)
         generator = nn.Sequential(
             nn.Linear(model_opt.dec_rnn_size, len(vocab)),
+            Cast(torch.float32),
             gen_func
         )
 
