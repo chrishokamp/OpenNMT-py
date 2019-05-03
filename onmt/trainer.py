@@ -145,10 +145,10 @@ class Trainer(object):
         self.trunc_size = trunc_size
         self.shard_size = shard_size
         self.norm_method = norm_method
-        self.accum_count_l = [accum_count]
+        self.accum_count_l = [accum_count] if type(accum_count) is int else accum_count
         # note currently we just have two names for the same attr to keep in sync with upstream
-        self.accum_count = accum_count
-        self.grad_accum_count = accum_count
+        self.accum_count = accum_count[0] if type(accum_count) is list else accum_count
+        self.grad_accum_count = self.accum_count
         # Note hard-coded accum_steps
         self.accum_steps = [0]
         self.n_gpu = n_gpu
