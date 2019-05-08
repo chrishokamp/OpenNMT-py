@@ -103,6 +103,7 @@ class Embeddings(nn.Module):
                  feat_vec_size=-1,
                  feat_padding_idx=[],
                  feat_vocab_sizes=[],
+                 num_tasks=-1,
                  dropout=0,
                  sparse=False,
                  fix_word_vecs=False):
@@ -132,6 +133,21 @@ class Embeddings(nn.Module):
         vocab_sizes.extend(feat_vocab_sizes)
         emb_dims.extend(feat_dims)
         pad_indices.extend(feat_padding_idx)
+
+        self.num_tasks = num_tasks
+        if self.num_tasks > 1:
+            assert feat_merge == 'sum', \
+                'task embeddings only supported for sum-merge'
+            # make an embeddings for the tasks, len+1 for pad_idx
+            vocab_sizes += [num_tasks + 1]
+            # same dim as primary word embs
+            emb_dims += [emb_dims[0]]
+            # note hard-coded task embedding pad_idx = 0
+            pad_indices += [0]
+
+            # This is a stateful attribute that must be set externally
+            # TODO: ensure backwards compatibility with this attribute
+            self.current_task = None
 
         # The embedding matrix look-up tables. The first look-up table
         # is for words. Subsequent ones are for features, if any exist.
@@ -234,6 +250,24 @@ class Embeddings(nn.Module):
         Returns:
             FloatTensor: Word embeddings ``(len, batch, embedding_size)``
         """
+
+        if self.num_tasks > 1:
+            #  append a dimension with new data to the source,
+            #  which contains the task embedding tiled to match the source'
+            #  the final embedding will do the job of mapping the task token
+            #  to the language embedding
+            # (time, batch, dim)
+            assert self.current_task is not None, \
+                'embedding task context must be set ' \
+                'when task embeddings are being used'
+            assert source.shape[-1] == 1, ('task embedding logic is not'
+                                           'implemented for factored models')
+
+            # copy the source shape to a new tensor
+            task_tensor = source.new_full(source.shape, self.current_task)
+            # note hard coded task tensor pad_idx = 0
+            task_tensor[source == self.make_embedding[0][0].padding_idx] = 0
+            source = torch.cat((source, task_tensor), -1)
 
         if self.position_encoding:
             for i, module in enumerate(self.make_embedding._modules.values()):

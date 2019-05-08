@@ -20,6 +20,7 @@ class MultiTaskModel(nn.Module):
                  encoder_map,
                  decoder_map,
                  generator_map,
+                 task2idx=None,
                  init_decoder='rnn_final_state',
                  bridge=None):
 
@@ -47,6 +48,8 @@ class MultiTaskModel(nn.Module):
 
         assert (len(self.decoders) == len(self.generators),
                 'Generators are linked to decoders.')
+
+        self.task2idx = task2idx
 
         self.bridge = None
         if bridge is not None:
@@ -85,6 +88,11 @@ class MultiTaskModel(nn.Module):
         tgt = tgt[:-1]  # exclude last target from inputs
 
         encoder = self.encoders[self.encoder_ids[src_task]]
+        # set encoder embedding in the target task mode
+        # Note: if encoder, decoder, and generator share embeddings, setting
+        #  the embedding context will affect all of these
+        if hasattr(encoder.embeddings, 'current_task'):
+            encoder.embeddings.current_task = self.task2idx[tgt_task]
         decoder = self.decoders[self.decoder_ids[tgt_task]]
 
         enc_final, memory_bank, lengths = encoder(src, src_lengths)

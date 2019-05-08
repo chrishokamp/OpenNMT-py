@@ -30,7 +30,9 @@ from onmt.utils.logging import logger
 from onmt.utils.parse import ArgumentParser
 
 
-def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True,
+def build_embeddings(opt, word_dict, feature_dicts,
+                     for_encoder=True,
+                     num_embedding_tasks=-1,
                      pad_word='<blank>'):
 
     """
@@ -69,6 +71,7 @@ def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True,
         feat_merge=opt.feat_merge,
         feat_vec_exponent=opt.feat_vec_exponent,
         feat_vec_size=opt.feat_vec_size,
+        num_tasks=num_embedding_tasks,
         dropout=opt.dropout,
         word_padding_idx=word_padding_idx,
         feat_padding_idx=feats_padding_idx,

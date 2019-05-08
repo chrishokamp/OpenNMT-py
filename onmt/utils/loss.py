@@ -310,7 +310,13 @@ class NMTLossCompute(LossComputeBase):
         scores = self.generator(bottled_output)
 
         gtruth = target.view(-1)
-        loss = self.criterion(scores, gtruth)
+        try:
+            loss = self.criterion(scores, gtruth)
+        except RuntimeError as e:
+            print('ERROR: Are you sure the vocabulary and generator '
+                  'sharing config is correct?')
+            raise e
+
 
         # IDEA: put predictions onto stats object?
         stats = self._stats(loss.clone(), scores, gtruth, batch)

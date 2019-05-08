@@ -4,6 +4,7 @@ import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 import operator
 import functools
+from collections import namedtuple
 from copy import copy
 from math import sqrt
 
@@ -31,6 +32,20 @@ def build_torch_optimizer(model, opt):
     Returns:
       A ``torch.optim.Optimizer`` instance.
     """
+
+    if opt.optim == 'fusedadam':
+        try:
+            import apex
+        except ModuleNotFoundError:
+            print('Error: could not import apex for fusedadam, '
+                  'setting optimizer to pytorch adam')
+            try:
+                opt = vars(opt)
+            except TypeError:
+                opt = opt._asdict()
+            opt['optim'] = 'adam'
+            opt = namedtuple('OnmtOpt', opt.keys())(**opt)
+
     params = [p for p in model.parameters() if p.requires_grad]
     betas = [opt.adam_beta1, opt.adam_beta2]
     if opt.optim == 'sgd':
