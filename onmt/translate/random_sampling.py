@@ -143,9 +143,42 @@ class RandomSampling(DecodeStrategy):
         self.done = self.is_finished.all()
         if self.done:
             return
+
+        # Chris: note this path only happens when batch_size > 1
         is_alive = ~self.is_finished.view(-1)
         self.alive_seq = self.alive_seq[is_alive]
         if self.alive_attn is not None:
             self.alive_attn = self.alive_attn[:, is_alive]
         self.select_indices = is_alive.nonzero().view(-1)
         self.original_batch_idx = self.original_batch_idx[is_alive]
+
+    # TODO: Chris: temporary method for global samplers
+    # TODO: Chris: everything is alive until max len
+    def global_update_finished(self):
+        """Finalize scores and predictions."""
+        # shape: (sum(~ self.is_finished), 1)
+        #finished_batches = self.is_finished.view(-1).nonzero()
+        # TODO: Chris: temporary method for global samplers
+        #  everything is always "finished
+        # TODO: Chris: dynamic device type
+        is_finished = torch.ones(
+            [1, 1],
+            dtype=torch.uint8, device='cpu')
+        # dtype = torch.uint8, device = self.device)
+        finished_batches = is_finished.view(-1).nonzero()
+        for b in finished_batches.view(-1):
+            b_orig = self.original_batch_idx[b]
+            self.scores[b_orig].append(self.topk_scores[b, 0])
+            self.predictions[b_orig].append(self.alive_seq[b, 1:])
+            self.attention[b_orig].append(
+                self.alive_attn[:, b, :self.memory_length[b]]
+                if self.alive_attn is not None else [])
+        #self.done = self.is_finished.all()
+        #if self.done:
+        #    return
+        #is_alive = ~self.is_finished.view(-1)
+        #self.alive_seq = self.alive_seq[is_alive]
+        #if self.alive_attn is not None:
+        #    self.alive_attn = self.alive_attn[:, is_alive]
+        #self.select_indices = is_alive.nonzero().view(-1)
+        #self.original_batch_idx = self.original_batch_idx[is_alive]
