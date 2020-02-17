@@ -1,6 +1,9 @@
 """ Onmt NMT Model base class definition """
 
 import torch.nn as nn
+import torch
+
+from mt_model_transfer.embeddings.pytorch_transformers_embeddings import TransformersEmbeddingWrapper
 
 from onmt.modules.attention_bridge import AttentionBridge
 
@@ -102,12 +105,24 @@ class MultiTaskModel(nn.Module):
         if self.bridge is not None:
             enc_final, memory_bank = self.bridge(memory_bank)
 
+        # WORKING: we need to change the transformers pad tokens to the pad tokens that our transformer knows about
+        if type(encoder.embeddings) is TransformersEmbeddingWrapper:
+            pad_idx = decoder.embeddings.word_padding_idx
+            # this would break the hack
+            assert pad_idx != 0
+            src = torch.zeros((memory_bank.shape[0], memory_bank.shape[1], 1),
+                              device=src.device, dtype=src.dtype)
+            for idx, length in enumerate(lengths):
+                src[length:, idx] = pad_idx
+
         self.init_decoder_state(encoder, decoder,
                                 src, memory_bank, enc_final)
 
+        # Note: src_lengths changed to `lengths` because sequence lengths can change inside
+        #  the encoder
         decoder_outputs, attns = \
             decoder(tgt, memory_bank,
-                    memory_lengths=src_lengths)
+                    memory_lengths=lengths)
 
         return decoder_outputs, attns
 
