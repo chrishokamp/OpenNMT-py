@@ -158,18 +158,36 @@ class RNNDecoderBase(DecoderBase):
 
     def init_state(self, src, memory_bank, encoder_final):
         """Initialize decoder state with last state of the encoder."""
+
+        # WORKING
+        # if enc_final is from a transformer model then it is (batch, dim),
+        # we need to duplicate and possibly pass through linear map to make
+        # it work as LSTM initial state
+
         def _fix_enc_hidden(hidden):
-            # The encoder hidden is  (layers*directions) x batch x dim.
+            # If coming from an RNN encoder, encoder hidden is  (layers*directions) x batch x dim.
             # We need to convert it to layers x batch x (directions*dim).
             if self.bidirectional_encoder:
                 hidden = torch.cat([hidden[0:hidden.size(0):2],
                                     hidden[1:hidden.size(0):2]], 2)
             return hidden
 
-        if isinstance(encoder_final, tuple):  # LSTM
+        if isinstance(encoder_final, tuple):  # Chris: currently this if LSTM Encoder _and_ Decoder
             self.state["hidden"] = tuple(_fix_enc_hidden(enc_hid)
                                          for enc_hid in encoder_final)
-        else:  # GRU
+        elif type(self.rnn) is StackedLSTM:
+            # TODO: pass through an initial state map if enc and dec hidden dims are different?
+            # Chris: repeat for however many layers the decoder has
+            # Note parens notation to cast to tuple for LSTM
+            # we need hidden to be dec_layers x batch x dec_dim, and lstm has internal states (h, c)
+            initial_dec_state = encoder_final.repeat(self.num_layers, 1, 1)
+            self.state["hidden"] = \
+                (initial_dec_state, initial_dec_state)
+            #import ipdb; ipdb.set_trace()
+            #self.state["hidden"] = \
+            #    (_fix_enc_hidden(encoder_final).repeat(self.num_layers, 1, 1), )
+            #self.state["hidden"] = tuple([encoder_final, encoder_final])
+        else:  # GRU decoder
             # Chris: repeat for however many layers the decoder has
             self.state["hidden"] = \
                 (_fix_enc_hidden(encoder_final).repeat(self.num_layers, 1, 1), )
@@ -178,6 +196,7 @@ class RNNDecoderBase(DecoderBase):
         batch_size = self.state["hidden"][0].size(1)
         h_size = (batch_size, self.hidden_size)
         # Chris: hidden is 3d, input_feed is 2d
+        # TODO: Old code, not sure how/if this ever actually worked
         self.state["input_feed"] = \
             self.state["hidden"][0].data.new(*h_size).zero_().unsqueeze(0)
         self.state["coverage"] = None
@@ -211,8 +230,8 @@ class RNNDecoderBase(DecoderBase):
               ``(tgt_len, batch, src_len)``.
         """
 
-        dec_state, dec_outs, attns = self._run_forward_pass(
-            tgt, memory_bank, memory_lengths=memory_lengths)
+        dec_state, dec_outs, attns = \
+            self._run_forward_pass(tgt, memory_bank, memory_lengths=memory_lengths)
 
         # Update the state with the result.
         if not isinstance(dec_state, tuple):
@@ -227,7 +246,7 @@ class RNNDecoderBase(DecoderBase):
         # NOTE: v0.3 to 0.4: dec_outs / attns[*] may not be list
         #       (in particular in case of SRU) it was not raising error in 0.3
         #       since stack(Variable) was allowed.
-        #       In 0.4, SRU returns a tensor that shouldn't be stacke
+        #       In 0.4, SRU returns a tensor that shouldn't be stacked
         if type(dec_outs) == list:
             dec_outs = torch.stack(dec_outs)
 
@@ -362,6 +381,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         input_feed = self.state["input_feed"].squeeze(0)
         input_feed_batch, _ = input_feed.size()
         _, tgt_batch, _ = tgt.size()
+
         aeq(tgt_batch, input_feed_batch)
         # END Additional args check.
 
